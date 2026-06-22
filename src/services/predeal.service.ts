@@ -3,6 +3,7 @@ import { supabaseAdmin } from '../lib/supabase/server';
 import { notificationService } from './notification.service';
 import { getOrSet } from '../lib/cache';
 import { logger } from '../lib/logger';
+import { eventBus, EVENTS } from '../lib/event-bus';
 
 export class PreDealService extends BaseService {
   constructor() {
@@ -10,7 +11,6 @@ export class PreDealService extends BaseService {
   }
 
   async generatePreDeals(): Promise<number> {
-    // Use cache for the expensive matching query
     return getOrSet('predeals:generated', async () => {
       const { data: supplies } = await supabaseAdmin
         .from('products')
@@ -58,7 +58,6 @@ export class PreDealService extends BaseService {
 
             created++;
 
-            // Notify both parties
             await notificationService.sendNotification({
               userId: supply.company_id || 'system',
               type: 'pre_deal_generated',
@@ -72,8 +71,15 @@ export class PreDealService extends BaseService {
 
       this.log('info', `Generated ${created} pre-deals`);
       logger.info('Pre-deals generated', { created });
+
+      // === EVENT BUS ===
+      await eventBus.emit(EVENTS.PRE_DEAL_GENERATED, {
+        generated: created,
+        timestamp: new Date().toISOString(),
+      });
+
       return created;
-    }, 180); // 3 minute cache for expensive generation
+    }, 180);
   }
 
   private isGoodMatch(supply: any, demand: any): boolean {
@@ -99,7 +105,6 @@ export class PreDealService extends BaseService {
       .single();
 
     if (status === 'accepted') {
-      // Create order
       await supabaseAdmin.from('orders').insert({
         pre_deal_id: preDealId,
         buyer_id: preDeal?.demand_opportunity_id ? userId : preDeal?.supply_opportunity_id,

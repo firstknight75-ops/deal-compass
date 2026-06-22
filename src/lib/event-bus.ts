@@ -1,5 +1,6 @@
 /**
- * Minimal In-Memory Event Bus
+ * Minimal In-Memory Event Bus (Production foundation)
+ * Use for cross-service communication without tight coupling.
  */
 type Listener = (payload: any) => void | Promise<void>;
 
@@ -35,11 +36,14 @@ class EventBus {
 
 export const eventBus = new EventBus();
 
-// Convenience global events
+// Core domain events
 export const EVENTS = {
   OPPORTUNITY_CREATED: 'opportunity.created',
   PRE_DEAL_GENERATED: 'pre_deal.generated',
   CREDITS_SPENT: 'credits.spent',
   USER_UPDATED: 'user.updated',
+  BILLING_UPGRADED: 'billing.upgraded',
   RATE_LIMIT_EXCEEDED: 'rate.limit.exceeded',
 } as const;
+
+export type EventName = typeof EVENTS[keyof typeof EVENTS];

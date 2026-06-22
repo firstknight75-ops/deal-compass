@@ -1,11 +1,11 @@
 import { logger } from "../lib/logger";
 /**
  * Trade Knowledge Graph Service (Phase 6)
- * This is the proprietary data moat.
+ * + Caching on relationships
  */
-
 import { BaseService } from './base.service';
 import { supabaseAdmin } from '../lib/supabase/server';
+import { getOrSet } from '../lib/cache';
 
 export interface Relationship {
   from_company_id: string;
@@ -28,7 +28,6 @@ export class KnowledgeGraphService extends BaseService {
   }) {
     const { fromCompanyId, toCompanyId, type, strength = 55 } = params;
 
-    // Upsert with strength increase on repeated evidence
     const { data: existing } = await supabaseAdmin
       .from('trade_relationships')
       .select('*')
@@ -53,37 +52,23 @@ export class KnowledgeGraphService extends BaseService {
         relationship_type: type,
         strength_score: strength,
         evidence_count: 1,
+        last_seen_at: new Date().toISOString(),
       });
     }
   }
 
-  async getCompanyNetwork(companyId: string, limit = 25) {
-    const { data } = await supabaseAdmin
-      .from('trade_relationships')
-      .select(`
-        *,
-        from:companies!from_company_id(id, name, country),
-        to:companies!to_company_id(id, name, country)
-      `)
-      .or(`from_company_id.eq.${companyId},to_company_id.eq.${companyId}`)
-      .order('strength_score', { ascending: false })
-      .limit(limit);
+  async getRelationshipsForCompany(companyId: string): Promise<Relationship[]> {
+    const cacheKey = `kg:relationships:${companyId}`;
+    return getOrSet(cacheKey, async () => {
+      const { data } = await supabaseAdmin
+        .from('trade_relationships')
+        .select('*')
+        .or(`from_company_id.eq.${companyId},to_company_id.eq.${companyId}`)
+        .order('strength_score', { ascending: false })
+        .limit(50);
 
-    return data || [];
-  }
-
-  async getTradeFlowMap(corridor?: string) {
-    // Simplified trade flow aggregation
-    let query = supabaseAdmin
-      .from('trade_relationships')
-      .select('relationship_type, strength_score, from:companies!from_company_id(country), to:companies!to_company_id(country)');
-
-    if (corridor) {
-      // In production would filter by corridor logic
-    }
-
-    const { data } = await query.limit(100);
-    return data || [];
+      return data || [];
+    }, 300);
   }
 }
 

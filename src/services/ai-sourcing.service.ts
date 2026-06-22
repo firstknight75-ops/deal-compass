@@ -1,14 +1,13 @@
 /**
  * AI Sourcing Agent — Production Service (Phase 7)
- * Uses real structured extraction + ranking.
- * Ready to plug in real Anthropic.
+ * + Caching on query results
  */
-
 import { BaseService } from './base.service';
 import { supabaseAdmin } from '../lib/supabase/server';
 import { parseSourcingRequestWithLLM, StructuredSourcingFilters } from '../lib/anthropicStub';
 import { parseSourcingQueryWithClaude } from '../lib/anthropic';
 import { opportunityService, Opportunity } from './opportunity.service';
+import { getOrSet } from '../lib/cache';
 
 export interface SourcingResult {
   opportunity: Opportunity;
@@ -29,50 +28,50 @@ export class AISourcingAgentService extends BaseService {
     results: SourcingResult[];
     total_matches: number;
   }> {
-    // Step 1: Try real Claude first, fallback to high-quality stub
-    let parsed: StructuredSourcingFilters;
-    try {
-      if (process.env.ANTHROPIC_API_KEY) {
-        const claudeResult = await parseSourcingQueryWithClaude(query);
-        parsed = claudeResult.error ? await parseSourcingRequestWithLLM(query) : claudeResult;
-      } else {
+    const cacheKey = `ai-sourcing:${query.slice(0, 64)}:${userId || 'anon'}`;
+
+    return getOrSet(cacheKey, async () => {
+      let parsed: StructuredSourcingFilters;
+      try {
+        if (process.env.ANTHROPIC_API_KEY) {
+          const claudeResult = await parseSourcingQueryWithClaude(query);
+          parsed = claudeResult.error ? await parseSourcingRequestWithLLM(query) : claudeResult;
+        } else {
+          parsed = await parseSourcingRequestWithLLM(query);
+        }
+      } catch {
         parsed = await parseSourcingRequestWithLLM(query);
       }
-    } catch {
-      parsed = await parseSourcingRequestWithLLM(query);
-    }
 
-    this.log('info', 'Parsed sourcing request', { query, parsed });
+      this.log('info', 'Parsed sourcing request', { query, parsed });
 
-    // Step 2: Query opportunities using structured filters
-    const opportunities = await opportunityService.getActiveOpportunities({
-      product: parsed.product_name,
-      origin: parsed.origin_country || parsed.export_country,
-    });
+      const opportunities = await opportunityService.getActiveOpportunities({
+        product: parsed.product_name,
+        origin: parsed.origin_country || parsed.export_country,
+      });
 
-    // Step 3: Rank + explain
-    const ranked: SourcingResult[] = opportunities
-      .map(opp => {
-        const matchScore = this.calculateMatchScore(opp, parsed);
-        return {
-          opportunity: opp,
-          match_score: matchScore,
-          match_explanation: this.generateExplanation(opp, parsed, matchScore),
-        };
-      })
-      .sort((a, b) => b.match_score - a.match_score)
-      .slice(0, 12);
+      const ranked: SourcingResult[] = opportunities
+        .map(opp => {
+          const matchScore = this.calculateMatchScore(opp, parsed);
+          return {
+            opportunity: opp,
+            match_score: matchScore,
+            match_explanation: this.generateExplanation(opp, parsed, matchScore),
+          };
+        })
+        .sort((a, b) => b.match_score - a.match_score)
+        .slice(0, 12);
 
-    return {
-      parsed_filters: parsed,
-      results: ranked,
-      total_matches: ranked.length,
-    };
+      return {
+        parsed_filters: parsed,
+        results: ranked,
+        total_matches: ranked.length,
+      };
+    }, 120); // 2 min cache for expensive AI queries
   }
 
   private calculateMatchScore(opp: Opportunity, filters: StructuredSourcingFilters): number {
     let score = 55;
-
     if (filters.product_name && opp.product_name?.toLowerCase().includes(filters.product_name.toLowerCase().slice(0, 6))) {
       score += 25;
     }
@@ -86,7 +85,6 @@ export class AISourcingAgentService extends BaseService {
       score += 6;
     }
     if (opp.score) score += Math.min(12, (opp.score - 70) / 3);
-
     return Math.min(97, Math.floor(score));
   }
 

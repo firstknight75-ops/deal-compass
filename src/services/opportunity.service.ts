@@ -3,6 +3,7 @@ import { supabaseAdmin } from '../lib/supabase/server';
 import { calculateQualityScore } from '../lib/engineUtils';
 import { cache, getOrSet } from '../lib/cache';
 import { logger } from '../lib/logger';
+import { eventBus, EVENTS } from '../lib/event-bus';
 
 export interface Opportunity {
   id: string;
@@ -67,7 +68,7 @@ export class OpportunityService extends BaseService {
       const result = (data || []).map(this.mapToOpportunity);
       logger.info('Opportunities fetched from DB', { count: result.length, filters });
       return result;
-    }, 45); // 45s cache
+    }, 45);
   }
 
   async getOpportunityById(id: string): Promise<Opportunity | null> {
@@ -124,7 +125,19 @@ export class OpportunityService extends BaseService {
       .update({ score: score.total })
       .eq('id', data.id);
 
-    return this.mapToOpportunity({ ...data, score: score.total });
+    const created = this.mapToOpportunity({ ...data, score: score.total });
+
+    // === EVENT BUS: emit on creation ===
+    await eventBus.emit(EVENTS.OPPORTUNITY_CREATED, {
+      opportunityId: created.id,
+      type: created.type,
+      product: created.product_name,
+      score: created.score,
+      createdAt: created.created_at,
+    });
+
+    logger.info('Opportunity created (event emitted)', { id: created.id });
+    return created;
   }
 
   private mapToOpportunity(row: any): Opportunity {

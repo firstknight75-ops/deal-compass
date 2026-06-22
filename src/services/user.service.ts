@@ -3,6 +3,7 @@ import { supabaseAdmin } from '../lib/supabase/server';
 import { z } from 'zod';
 import { getOrSet } from '../lib/cache';
 import { logger } from '../lib/logger';
+import { eventBus, EVENTS } from '../lib/event-bus';
 
 export interface User {
   id: string;
@@ -42,7 +43,7 @@ export class UserService extends BaseService {
         return null;
       }
       return data;
-    }, 120); // 2 minute cache for user profiles
+    }, 120);
   }
 
   async updateUser(userId: string, updates: z.infer<typeof UpdateUserSchema>): Promise<User> {
@@ -58,6 +59,14 @@ export class UserService extends BaseService {
     if (error) throw new Error('Failed to update user');
 
     await this.logAudit(userId, 'user.updated', 'user', userId, updates);
+
+    // === EVENT BUS ===
+    await eventBus.emit(EVENTS.USER_UPDATED, {
+      userId,
+      updates: parsed,
+      timestamp: new Date().toISOString(),
+    });
+
     return data;
   }
 

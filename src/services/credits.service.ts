@@ -1,5 +1,7 @@
 import { supabaseAdmin } from '../lib/supabase/server';
 import { z } from 'zod';
+import { eventBus, EVENTS } from '../lib/event-bus';
+import { getOrSet, cache } from '../lib/cache';
 
 export interface CreditsTransaction {
   id: string;
@@ -19,15 +21,10 @@ const SpendCreditsSchema = z.object({
 });
 
 export class CreditsService {
-  /**
-   * Atomically spend credits.
-   * Returns true if successful, false if insufficient balance.
-   */
   async spendCredits(input: z.infer<typeof SpendCreditsSchema>): Promise<boolean> {
     const parsed = SpendCreditsSchema.parse(input);
     const { userId, amount, referenceId, metadata } = parsed;
 
-    // Use Postgres transaction via RPC for atomicity
     const { data, error } = await supabaseAdmin.rpc('spend_credits_atomic', {
       p_user_id: userId,
       p_amount: amount,
@@ -38,6 +35,18 @@ export class CreditsService {
     if (error) {
       console.error('[CreditsService] spendCredits error:', error);
       throw new Error('Failed to spend credits');
+    }
+
+    if (data === true) {
+      // Invalidate balance cache
+      cache.delete(`credits:balance:${userId}`);
+
+      await eventBus.emit(EVENTS.CREDITS_SPENT, {
+        userId,
+        amount,
+        referenceId,
+        timestamp: new Date().toISOString(),
+      });
     }
 
     return data === true;
@@ -57,29 +66,38 @@ export class CreditsService {
     });
 
     if (error) throw new Error('Failed to add credits: ' + error.message);
+
+    // Invalidate balance
+    cache.delete(`credits:balance:${userId}`);
   }
 
   async getBalance(userId: string): Promise<number> {
-    const { data, error } = await supabaseAdmin
-      .from('users')
-      .select('credits_balance')
-      .eq('id', userId)
-      .single();
+    const cacheKey = `credits:balance:${userId}`;
 
-    if (error) throw error;
-    return data?.credits_balance ?? 0;
+    return getOrSet(cacheKey, async () => {
+      const { data, error } = await supabaseAdmin
+        .from('users')
+        .select('credits_balance')
+        .eq('id', userId)
+        .single();
+
+      if (error) throw error;
+      return data?.credits_balance ?? 0;
+    }, 60);
   }
 
   async getTransactionHistory(userId: string, limit = 50): Promise<CreditsTransaction[]> {
-    const { data, error } = await supabaseAdmin
-      .from('credits_transactions')
-      .select('*')
-      .eq('user_id', userId)
-      .order('created_at', { ascending: false })
-      .limit(limit);
+    return getOrSet(`credits:history:${userId}:${limit}`, async () => {
+      const { data, error } = await supabaseAdmin
+        .from('credits_transactions')
+        .select('*')
+        .eq('user_id', userId)
+        .order('created_at', { ascending: false })
+        .limit(limit);
 
-    if (error) throw error;
-    return data || [];
+      if (error) throw error;
+      return data || [];
+    }, 120);
   }
 }
 
