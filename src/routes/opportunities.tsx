@@ -6,6 +6,7 @@ import { Input } from '../components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
 import { Badge } from '../components/ui/badge';
 import { getOpportunities, unlockContact, addOpportunity, Opportunity, useCredits, getUser } from '../lib/mockData';
+import { generateLeadQuality } from '../lib/engineUtils';
 import { useI18n } from '../lib/i18n';
 import { AppHeader } from '../components/AppHeader';
 import { toast } from 'sonner';
@@ -124,10 +125,20 @@ function OpportunitiesPage() {
                       <div className="font-medium">{opp.company}</div>
                       <div className="text-xs text-muted-foreground">{opp.verified ? '✓ Verified' : 'Unverified'}</div>
                     </div>
+
                     {!isUnlocked && !opp.contactName ? (
-                      <Button size="sm" onClick={() => handleUnlock(opp.id)} className="bg-gold text-ink hover:bg-gold-dim">
-                        {t('unlock')} <span className="text-xs ml-1">(1 credit)</span>
-                      </Button>
+                      <div className="text-right">
+                        {/* Lead Intelligence Preview (Engine 4) */}
+                        {opp.leadQuality && (
+                          <div className="mb-1.5 text-[10px] text-right leading-tight text-muted-foreground">
+                            {opp.leadQuality.activityTier} • {opp.leadQuality.closeProbability}% close prob.<br />
+                            Response: {opp.leadQuality.responseRate}th percentile
+                          </div>
+                        )}
+                        <Button size="sm" onClick={() => handleUnlock(opp.id)} className="bg-gold text-ink hover:bg-gold-dim">
+                          {t('unlock')} <span className="text-xs ml-1">(1 credit)</span>
+                        </Button>
+                      </div>
                     ) : (
                       <div className="text-xs bg-emerald-50 text-emerald-700 px-3 py-1 rounded font-medium">
                         {opp.contactName}<br />
@@ -135,6 +146,16 @@ function OpportunitiesPage() {
                       </div>
                     )}
                   </div>
+
+                  {/* Engine 3: Detailed Score Breakdown */}
+                  {opp.scoreBreakdown && (
+                    <div className="text-[10px] mt-2 pt-2 border-t text-muted-foreground flex gap-3 flex-wrap">
+                      <span>Completeness: {opp.scoreBreakdown.fieldCompleteness}</span>
+                      <span>Source: {opp.scoreBreakdown.sourceReliability}</span>
+                      <span>Freshness: {opp.scoreBreakdown.dataFreshness}</span>
+                      <span>Cross-source: {opp.scoreBreakdown.crossSourceConfirmation}</span>
+                    </div>
+                  )}
                 </CardContent>
               </Card>
             );

@@ -1,3 +1,5 @@
+import { calculateQualityScore, generateLeadQuality, normalizeOpportunity, simulateRadarCrawl, QualityScoreBreakdown, LeadQuality, NormalizedRecord } from './engineUtils';
+
 export interface Opportunity {
   id: string;
   type: 'sell' | 'buy' | 'tender' | 'surplus' | 'contract';
@@ -18,6 +20,10 @@ export interface Opportunity {
   contactEmail?: string;
   description?: string;
   verified: boolean;
+  sourceUrl?: string;
+  crawledAt?: string;
+  scoreBreakdown?: QualityScoreBreakdown;
+  leadQuality?: LeadQuality;
 }
 
 export interface PreDeal {
@@ -40,6 +46,8 @@ export interface MarketSignal {
   demandIndex: number;
   supplyIndex: number;
   corridor: string;
+  avgPrice?: number;
+  topProducts?: string[];
 }
 
 export interface Shipment {
@@ -53,12 +61,24 @@ export interface Shipment {
 }
 
 let opportunities: Opportunity[] = [
-  { id: 'o1', type: 'sell', product: 'Urea 46%', category: 'Fertilizers', quantity: 5000, unit: 'MT', price: 385, currency: 'USD', origin: 'Oman', exportCountry: 'UAE', incoterm: 'CIF', score: 92, ageDays: 2, company: 'Gulf Petrochem', verified: true },
+  { id: 'o1', type: 'sell', product: 'Urea 46%', category: 'Fertilizers', quantity: 5000, unit: 'MT', price: 385, currency: 'USD', origin: 'Oman', exportCountry: 'UAE', incoterm: 'CIF', score: 92, ageDays: 2, company: 'Gulf Petrochem', verified: true, sourceUrl: 'https://dubai.comex.ae/tender/4821' },
   { id: 'o2', type: 'buy', product: 'Steel Rebar 12mm', category: 'Construction', quantity: 1200, unit: 'MT', price: 720, currency: 'USD', origin: 'Turkey', exportCountry: 'Turkey', incoterm: 'FOB', score: 87, ageDays: 4, company: 'Al-Mansour Trading', verified: true },
   { id: 'o3', type: 'tender', product: 'Cement OPC 42.5', category: 'Construction', quantity: 8500, unit: 'MT', price: 92, currency: 'USD', origin: 'Iraq', exportCountry: 'Iraq', incoterm: 'CIF', score: 78, ageDays: 1, company: 'Iraq Ministry of Construction', verified: true },
   { id: 'o4', type: 'sell', product: 'Base Oil SN150', category: 'Petrochemicals', quantity: 2400, unit: 'MT', price: 950, currency: 'USD', origin: 'Iran', exportCountry: 'UAE', incoterm: 'CIF', score: 85, ageDays: 6, company: 'Persian Refining', verified: false },
   { id: 'o5', type: 'surplus', product: 'Dates (Medjool)', category: 'Agriculture', quantity: 380, unit: 'MT', price: 1650, currency: 'USD', origin: 'Iraq', exportCountry: 'Iraq', incoterm: 'FOB', score: 94, ageDays: 3, company: 'Basra Dates Export', verified: true },
 ];
+
+// Apply full SRS scoring on load
+opportunities = opportunities.map(opp => {
+  const breakdown = calculateQualityScore(opp, opportunities);
+  const lead = generateLeadQuality(opp);
+  return { 
+    ...opp, 
+    score: breakdown.total, 
+    scoreBreakdown: breakdown,
+    leadQuality: lead 
+  };
+});
 
 let preDeals: PreDeal[] = [
   { id: 'pd1', opportunityId: 'o1', product: 'Urea 46%', suggestedPrice: 375, quantity: 5000, buyerId: 'user1', sellerId: 'seller1', matchScore: 89, status: 'pending', expiresAt: '2026-06-28', paymentTerms: '30% advance, 70% LC at sight' },
@@ -70,8 +90,14 @@ let marketSignals: MarketSignal[] = [
   { commodity: 'Cement', priceTrend: -1.8, demandIndex: 73, supplyIndex: 89, corridor: 'GCC-Iraq' },
 ];
 
+let normalizedRecords: NormalizedRecord[] = [];
+
 export function getOpportunities(): Opportunity[] {
   return [...opportunities];
+}
+
+export function getNormalizedRecords(): NormalizedRecord[] {
+  return [...normalizedRecords];
 }
 
 export function addOpportunity(opp: Partial<Opportunity>): Opportunity {
@@ -87,12 +113,20 @@ export function addOpportunity(opp: Partial<Opportunity>): Opportunity {
     origin: opp.origin || 'Iraq',
     exportCountry: opp.exportCountry || 'Turkey',
     incoterm: opp.incoterm || 'CIF',
-    score: opp.score || Math.floor(Math.random() * 30) + 70,
+    score: 0,
     ageDays: 0,
     company: opp.company || 'Demo Company',
     verified: true,
     ...opp
   };
+
+  // Apply full SRS 4-signal scoring
+  const breakdown = calculateQualityScore(newOpp, opportunities);
+  const lead = generateLeadQuality(newOpp);
+  newOpp.score = breakdown.total;
+  newOpp.scoreBreakdown = breakdown;
+  newOpp.leadQuality = lead;
+
   opportunities = [newOpp, ...opportunities];
   return newOpp;
 }
@@ -135,22 +169,103 @@ export function getMarketSignals(): MarketSignal[] {
 export function unlockContact(oppId: string): Opportunity | undefined {
   const opp = opportunities.find(o => o.id === oppId);
   if (!opp) return;
-  // Simulate unlocking
+  
+  // Add lead quality preview if missing
+  if (!opp.leadQuality) {
+    opp.leadQuality = generateLeadQuality(opp);
+  }
+  
   opp.contactName = 'Ahmed Al-Khalid';
   opp.contactPhone = '+964 770 123 4567';
   opp.contactEmail = 'ahmed@' + opp.company.toLowerCase().replace(/\s+/g, '') + '.com';
   return opp;
 }
 
+// ==================== ENGINE 1: TRADE RADAR ====================
 export function runRadarScan(): Opportunity[] {
-  const newOnes = [
-    { id: 'scan' + Date.now(), type: 'sell' as const, product: 'Sulfur Granular', category: 'Petrochemicals', quantity: 3200, unit: 'MT', price: 185, currency: 'USD', origin: 'Iran', exportCountry: 'UAE', incoterm: 'FOB', score: 81, ageDays: 0, company: 'Iran Sulphur Corp', verified: true },
-    { id: 'scan' + (Date.now() + 1), type: 'buy' as const, product: 'Wheat (Soft)', category: 'Agriculture', quantity: 15000, unit: 'MT', price: 265, currency: 'USD', origin: 'Russia', exportCountry: 'Turkey', incoterm: 'CIF', score: 76, ageDays: 0, company: 'Baghdad Grains', verified: true },
-  ];
-  opportunities = [...newOnes, ...opportunities];
-  return newOnes;
+  const crawled = simulateRadarCrawl(4);
+  
+  const newOpps: Opportunity[] = crawled.map(raw => {
+    const normalized = normalizeOpportunity(raw);
+    normalizedRecords.push(normalized);
+
+    const opp: Opportunity = {
+      id: raw.id,
+      type: 'sell',
+      product: normalized.product,
+      category: normalized.category,
+      quantity: normalized.quantity,
+      unit: normalized.unit,
+      price: normalized.price,
+      currency: normalized.currency,
+      origin: normalized.originCountry,
+      exportCountry: normalized.exportCountry,
+      incoterm: normalized.incoterm,
+      score: 0,
+      ageDays: 0,
+      company: raw.company || 'New Source',
+      verified: raw.verified,
+      sourceUrl: raw.sourceUrl,
+      crawledAt: normalized.crawledAt,
+    };
+
+    // Apply full SRS scoring
+    const breakdown = calculateQualityScore(opp, opportunities);
+    const lead = generateLeadQuality(opp);
+    opp.score = breakdown.total;
+    opp.scoreBreakdown = breakdown;
+    opp.leadQuality = lead;
+
+    return opp;
+  });
+
+  opportunities = [...newOpps, ...opportunities];
+  return newOpps;
 }
 
+// ==================== ENGINE 2: AI NORMALIZATION ====================
+export function runNormalization(rawRecords: any[]): NormalizedRecord[] {
+  const results = rawRecords.map(raw => {
+    const norm = normalizeOpportunity(raw);
+    normalizedRecords.unshift(norm); // newest first
+    return norm;
+  });
+  return results;
+}
+
+export function getRecentNormalized(count = 8): NormalizedRecord[] {
+  return [...normalizedRecords].slice(0, count);
+}
+
+// ==================== ENGINE 5: MARKET INTELLIGENCE ====================
+export function getAdvancedMarketSignals() {
+  const opps = getOpportunities();
+  const byCategory = opps.reduce((acc: any, o) => {
+    if (!acc[o.category]) acc[o.category] = [];
+    acc[o.category].push(o);
+    return acc;
+  }, {});
+
+  return Object.keys(byCategory).map(cat => {
+    const items = byCategory[cat];
+    const avgPrice = items.reduce((s: number, o: any) => s + o.price, 0) / items.length;
+    const demand = Math.floor(55 + Math.random() * 42);
+    const supply = Math.floor(48 + Math.random() * 45);
+
+    return {
+      commodity: cat,
+      avgPrice: Math.round(avgPrice),
+      priceTrend: +(Math.random() * 14 - 6).toFixed(1),
+      demandIndex: demand,
+      supplyIndex: supply,
+      surplus: supply > demand + 12,
+      corridor: items[0]?.exportCountry + ' → ' + (items[0]?.origin || 'Regional'),
+      count: items.length
+    };
+  });
+}
+
+// ==================== User & Credits ====================
 export interface User {
   id: string;
   name: string;

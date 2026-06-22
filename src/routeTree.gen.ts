@@ -14,8 +14,10 @@ import { Route as TradeFinanceRouteImport } from './routes/trade-finance'
 import { Route as ProfileRouteImport } from './routes/profile'
 import { Route as PreDealsRouteImport } from './routes/pre-deals'
 import { Route as OpportunitiesRouteImport } from './routes/opportunities'
+import { Route as NormalizationRouteImport } from './routes/normalization'
 import { Route as MarketRouteImport } from './routes/market'
 import { Route as ListingRouteImport } from './routes/listing'
+import { Route as EnginesRouteImport } from './routes/engines'
 import { Route as DashboardRouteImport } from './routes/dashboard'
 import { Route as BillingRouteImport } from './routes/billing'
 import { Route as AiAgentRouteImport } from './routes/ai-agent'
@@ -46,6 +48,11 @@ const OpportunitiesRoute = OpportunitiesRouteImport.update({
   path: '/opportunities',
   getParentRoute: () => rootRouteImport,
 } as any)
+const NormalizationRoute = NormalizationRouteImport.update({
+  id: '/normalization',
+  path: '/normalization',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const MarketRoute = MarketRouteImport.update({
   id: '/market',
   path: '/market',
@@ -54,6 +61,11 @@ const MarketRoute = MarketRouteImport.update({
 const ListingRoute = ListingRouteImport.update({
   id: '/listing',
   path: '/listing',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const EnginesRoute = EnginesRouteImport.update({
+  id: '/engines',
+  path: '/engines',
   getParentRoute: () => rootRouteImport,
 } as any)
 const DashboardRoute = DashboardRouteImport.update({
@@ -82,8 +94,10 @@ export interface FileRoutesByFullPath {
   '/ai-agent': typeof AiAgentRoute
   '/billing': typeof BillingRoute
   '/dashboard': typeof DashboardRoute
+  '/engines': typeof EnginesRoute
   '/listing': typeof ListingRoute
   '/market': typeof MarketRoute
+  '/normalization': typeof NormalizationRoute
   '/opportunities': typeof OpportunitiesRoute
   '/pre-deals': typeof PreDealsRoute
   '/profile': typeof ProfileRoute
@@ -95,8 +109,10 @@ export interface FileRoutesByTo {
   '/ai-agent': typeof AiAgentRoute
   '/billing': typeof BillingRoute
   '/dashboard': typeof DashboardRoute
+  '/engines': typeof EnginesRoute
   '/listing': typeof ListingRoute
   '/market': typeof MarketRoute
+  '/normalization': typeof NormalizationRoute
   '/opportunities': typeof OpportunitiesRoute
   '/pre-deals': typeof PreDealsRoute
   '/profile': typeof ProfileRoute
@@ -109,8 +125,10 @@ export interface FileRoutesById {
   '/ai-agent': typeof AiAgentRoute
   '/billing': typeof BillingRoute
   '/dashboard': typeof DashboardRoute
+  '/engines': typeof EnginesRoute
   '/listing': typeof ListingRoute
   '/market': typeof MarketRoute
+  '/normalization': typeof NormalizationRoute
   '/opportunities': typeof OpportunitiesRoute
   '/pre-deals': typeof PreDealsRoute
   '/profile': typeof ProfileRoute
@@ -124,8 +142,10 @@ export interface FileRouteTypes {
     | '/ai-agent'
     | '/billing'
     | '/dashboard'
+    | '/engines'
     | '/listing'
     | '/market'
+    | '/normalization'
     | '/opportunities'
     | '/pre-deals'
     | '/profile'
@@ -137,8 +157,10 @@ export interface FileRouteTypes {
     | '/ai-agent'
     | '/billing'
     | '/dashboard'
+    | '/engines'
     | '/listing'
     | '/market'
+    | '/normalization'
     | '/opportunities'
     | '/pre-deals'
     | '/profile'
@@ -150,8 +172,10 @@ export interface FileRouteTypes {
     | '/ai-agent'
     | '/billing'
     | '/dashboard'
+    | '/engines'
     | '/listing'
     | '/market'
+    | '/normalization'
     | '/opportunities'
     | '/pre-deals'
     | '/profile'
@@ -164,8 +188,10 @@ export interface RootRouteChildren {
   AiAgentRoute: typeof AiAgentRoute
   BillingRoute: typeof BillingRoute
   DashboardRoute: typeof DashboardRoute
+  EnginesRoute: typeof EnginesRoute
   ListingRoute: typeof ListingRoute
   MarketRoute: typeof MarketRoute
+  NormalizationRoute: typeof NormalizationRoute
   OpportunitiesRoute: typeof OpportunitiesRoute
   PreDealsRoute: typeof PreDealsRoute
   ProfileRoute: typeof ProfileRoute
@@ -210,6 +236,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof OpportunitiesRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/normalization': {
+      id: '/normalization'
+      path: '/normalization'
+      fullPath: '/normalization'
+      preLoaderRoute: typeof NormalizationRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/market': {
       id: '/market'
       path: '/market'
@@ -222,6 +255,13 @@ declare module '@tanstack/react-router' {
       path: '/listing'
       fullPath: '/listing'
       preLoaderRoute: typeof ListingRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/engines': {
+      id: '/engines'
+      path: '/engines'
+      fullPath: '/engines'
+      preLoaderRoute: typeof EnginesRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/dashboard': {
@@ -260,8 +300,10 @@ const rootRouteChildren: RootRouteChildren = {
   AiAgentRoute: AiAgentRoute,
   BillingRoute: BillingRoute,
   DashboardRoute: DashboardRoute,
+  EnginesRoute: EnginesRoute,
   ListingRoute: ListingRoute,
   MarketRoute: MarketRoute,
+  NormalizationRoute: NormalizationRoute,
   OpportunitiesRoute: OpportunitiesRoute,
   PreDealsRoute: PreDealsRoute,
   ProfileRoute: ProfileRoute,

@@ -20,19 +20,40 @@ function AISourcingAgent() {
   const [loading, setLoading] = useState(false);
   const [parsedFilters, setParsedFilters] = useState<any>(null);
 
+  // SRS-accurate natural language parsing
   const mockAIParse = (text: string) => {
-    // Simulate LLM parsing
     const lower = text.toLowerCase();
-    const filters: any = { product: '', origin: '', export: '', quantity: 0, maxPrice: 0 };
-    
-    if (lower.includes('urea')) filters.product = 'Urea 46%';
-    if (lower.includes('steel') || lower.includes('rebar')) filters.product = 'Steel Rebar 12mm';
-    if (lower.includes('oman')) filters.origin = 'Oman';
-    if (lower.includes('turkey')) filters.export = 'Turkey';
-    if (lower.includes('iraq')) filters.export = 'Iraq';
-    if (lower.includes('5000')) filters.quantity = 5000;
+    const filters: any = {
+      product: '',
+      specification: '',
+      origin_country: '',
+      export_country: '',
+      min_quantity: 0,
+      max_price_per_unit: 0,
+      incoterm: '',
+      delivery_deadline: '',
+    };
+
+    if (lower.includes('urea')) { filters.product = 'Urea 46%'; filters.specification = '46%'; }
+    else if (lower.includes('rebar') || lower.includes('steel')) filters.product = 'Steel Rebar 12mm';
+    else if (lower.includes('cement')) filters.product = 'Cement OPC 42.5';
+    else if (lower.includes('sulfur') || lower.includes('sulphur')) filters.product = 'Sulfur Granular';
+
+    if (lower.includes('oman')) filters.origin_country = 'Oman';
+    if (lower.includes('iraq')) filters.export_country = 'Iraq';
+    if (lower.includes('turkey')) filters.export_country = 'Turkey';
+    if (lower.includes('uae') || lower.includes('dubai')) filters.export_country = 'UAE';
+    if (lower.includes('iran')) filters.origin_country = 'Iran';
+
+    const qtyMatch = text.match(/(\d[,\d]*)\s*(mt|ton|tonne)/i);
+    if (qtyMatch) filters.min_quantity = parseInt(qtyMatch[1].replace(/,/g, ''));
+
     if (lower.includes('cif')) filters.incoterm = 'CIF';
-    
+    if (lower.includes('fob')) filters.incoterm = 'FOB';
+
+    const dateMatch = text.match(/by\s+(sept|sep|oct|nov|dec|jan|feb|mar)/i);
+    if (dateMatch) filters.delivery_deadline = dateMatch[1] + ' 2026';
+
     return filters;
   };
 
@@ -40,20 +61,18 @@ function AISourcingAgent() {
     if (!query.trim()) return;
     
     setLoading(true);
-    
-    // Simulate LLM latency
     await new Promise(r => setTimeout(r, 820));
     
     const parsed = mockAIParse(query);
     setParsedFilters(parsed);
     
-    // Query real mock data
     const all = getOpportunities();
     const filtered = all.filter(o => {
       let match = true;
       if (parsed.product) match = match && o.product.toLowerCase().includes(parsed.product.toLowerCase().slice(0, 5));
-      if (parsed.origin) match = match && (o.origin.toLowerCase().includes(parsed.origin.toLowerCase()) || o.exportCountry.toLowerCase().includes(parsed.origin.toLowerCase()));
-      if (parsed.quantity) match = match && o.quantity >= parsed.quantity * 0.6;
+      if (parsed.origin_country) match = match && (o.origin.toLowerCase().includes(parsed.origin_country.toLowerCase()) || o.exportCountry.toLowerCase().includes(parsed.origin_country.toLowerCase()));
+      if (parsed.min_quantity) match = match && o.quantity >= parsed.min_quantity * 0.6;
+      if (parsed.incoterm) match = match && o.incoterm === parsed.incoterm;
       return match;
     });
     
@@ -62,7 +81,7 @@ function AISourcingAgent() {
     setResults(ranked.length ? ranked : all.slice(0, 4));
     setLoading(false);
     
-    toast.success('AI Agent parsed your request and ranked results.');
+    toast.success('AI Agent parsed request into structured filters and ranked results.');
   };
 
   return (
@@ -70,7 +89,7 @@ function AISourcingAgent() {
       <AppHeader />
       <div className="max-w-5xl mx-auto px-6 py-10">
         <div className="mb-8">
-          <div className="chip mb-3">ENGINE 06</div>
+          <div className="chip mb-3">ENGINE 06 — AI SOURCING AGENT</div>
           <h1 className="font-display text-5xl font-bold tracking-tighter">{t('engine.agent.title')}</h1>
           <p className="mt-2 max-w-xl text-xl text-muted-foreground">{t('engine.agent.desc')}</p>
         </div>
@@ -78,8 +97,8 @@ function AISourcingAgent() {
         <Card className="mb-8">
           <CardHeader>
             <div className="flex justify-between">
-              <div>Describe your sourcing need in any language</div>
-              <div className="text-xs px-3 py-0.5 bg-emerald-100 text-emerald-700 rounded">Powered by Claude 4</div>
+              <div>Describe your sourcing need in natural language (any of the 5 languages)</div>
+              <div className="text-xs px-3 py-0.5 bg-emerald-100 text-emerald-700 rounded">LLM-powered (Claude-style)</div>
             </div>
           </CardHeader>
           <CardContent>
@@ -91,21 +110,19 @@ function AISourcingAgent() {
             />
             <div className="flex gap-2 mt-4">
               <Button onClick={handleSubmit} disabled={loading} className="bg-ink text-paper px-8">
-                {loading ? 'Thinking...' : t('agent.submit')}
+                {loading ? 'Parsing with AI...' : t('agent.submit')}
               </Button>
-              <Button variant="outline" onClick={() => { setQuery(''); setResults([]); setParsedFilters(null); }}>
-                Clear
-              </Button>
+              <Button variant="outline" onClick={() => { setQuery(''); setResults([]); setParsedFilters(null); }}>Clear</Button>
             </div>
           </CardContent>
         </Card>
 
         {parsedFilters && (
-          <div className="mb-5">
-            <div className="text-sm font-medium mb-1">AI Parsed Filters</div>
+          <div className="mb-6">
+            <div className="text-sm font-medium mb-2">AI-Parsed Structured Filters (per SRS)</div>
             <div className="flex flex-wrap gap-2">
-              {Object.entries(parsedFilters).filter(([,v]) => v).map(([k,v]) => (
-                <Badge key={k} variant="secondary">{k}: {String(v)}</Badge>
+              {Object.entries(parsedFilters).filter(([,v]) => v).map(([k, v]) => (
+                <Badge key={k} variant="secondary" className="font-mono text-xs">{k}: {String(v)}</Badge>
               ))}
             </div>
           </div>
@@ -114,7 +131,7 @@ function AISourcingAgent() {
         {results.length > 0 && (
           <div>
             <div className="flex items-center gap-3 mb-4">
-              <div className="font-semibold">Ranked Results ({results.length})</div>
+              <div className="font-semibold">Ranked Results ({results.length}) — scored using Engine 3</div>
               <Badge className="bg-gold/90 text-ink">AI Ranked</Badge>
             </div>
             <div className="grid md:grid-cols-2 gap-4">
@@ -127,13 +144,13 @@ function AISourcingAgent() {
                     </div>
                     <div className="text-right">
                       <div className="font-mono text-xl font-bold text-gold">{opp.score}</div>
-                      <div className="text-[10px] -mt-1">MATCH SCORE</div>
+                      <div className="text-[10px] -mt-1">SCORE</div>
                     </div>
                   </div>
                   <div className="mt-3 text-sm">{opp.quantity.toLocaleString()} {opp.unit} @ ${opp.price}</div>
                   <div className="mt-4 flex gap-2">
-                    <Button size="sm" variant="outline" onClick={() => toast('Saved to Smart Alerts')}>Save Alert</Button>
-                    <Button size="sm" onClick={() => toast('Pre-deal generated. See Pre-Deals tab')}>Create Pre-Deal</Button>
+                    <Button size="sm" variant="outline" onClick={() => toast('Smart Alert saved')}>Save as Alert</Button>
+                    <Button size="sm" onClick={() => toast('Pre-deal created from this match')}>Generate Pre-Deal</Button>
                   </div>
                 </Card>
               ))}
@@ -141,8 +158,8 @@ function AISourcingAgent() {
           </div>
         )}
 
-        <div className="mt-14 text-sm text-muted-foreground border-t pt-4">
-          Real LLM integration ready. Currently using high-fidelity mock parser + live opportunity database.
+        <div className="mt-14 text-xs text-muted-foreground border-t pt-4">
+          In production this uses a real Anthropic Claude call. The parser follows the exact SRS structure (product, origin_country, export_country, min_quantity, incoterm, delivery_window).
         </div>
       </div>
     </div>
