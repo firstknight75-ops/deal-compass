@@ -9,9 +9,9 @@
 import { z } from 'zod';
 
 const EnvSchema = z.object({
-  // Supabase (required)
-  VITE_SUPABASE_URL: z.string().url(),
-  VITE_SUPABASE_PUBLISHABLE_KEY: z.string().min(10),
+  // Supabase (optional for frontend-only landing builds)
+  VITE_SUPABASE_URL: z.string().url().optional().or(z.literal('')),
+  VITE_SUPABASE_PUBLISHABLE_KEY: z.string().optional().or(z.literal('')),
   SUPABASE_SERVICE_ROLE_KEY: z.string().min(10).optional(),
 
   // Stripe (optional for now)
