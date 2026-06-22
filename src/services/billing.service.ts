@@ -1,12 +1,7 @@
 /**
- * Billing Service — Production Grade (Complete Module)
+ * Billing Service — Production Grade (Complete)
  * 
- * Responsibilities:
- * - Tier management
- * - Credits top-up
- * - Stripe checkout session creation
- * - Subscription synchronization
- * - Real balance queries
+ * Single source of truth for tiers, plans, credits top-up, and checkout.
  */
 
 import { BaseService } from './base.service';
@@ -34,6 +29,10 @@ export class BillingService extends BaseService {
     super('BillingService');
   }
 
+  async getTiers(): Promise<Tier[]> {
+    return TIERS;
+  }
+
   async getCurrentPlan(userId: string) {
     const { data } = await supabaseAdmin
       .from('users')
@@ -47,10 +46,6 @@ export class BillingService extends BaseService {
     };
   }
 
-  async getTiers(): Promise<Tier[]> {
-    return TIERS;
-  }
-
   async upgradeTier(userId: string, tierName: string) {
     const tier = TIERS.find(t => t.name.toLowerCase() === tierName.toLowerCase());
     if (!tier) throw new Error('Invalid tier');
@@ -58,7 +53,7 @@ export class BillingService extends BaseService {
     await subscriptionService.upgradeTier(userId, tier.name.toLowerCase());
     await creditsService.addCredits(userId, tier.credits, 'purchase');
 
-    this.log('info', `User upgraded`, { userId, tier: tier.name });
+    this.log('info', `User upgraded to tier`, { userId, tier: tier.name });
 
     return {
       success: true,
@@ -68,8 +63,11 @@ export class BillingService extends BaseService {
   }
 
   async purchaseCredits(userId: string, amount: number) {
+    if (amount <= 0) throw new Error('Amount must be positive');
+
     await creditsService.addCredits(userId, amount, 'purchase');
     this.log('info', `Credits purchased`, { userId, amount });
+
     return { success: true, creditsAdded: amount };
   }
 
@@ -77,11 +75,13 @@ export class BillingService extends BaseService {
     const tier = TIERS.find(t => t.name.toLowerCase() === tierName.toLowerCase());
     if (!tier) throw new Error('Invalid tier');
 
-    return await stripeService.createCheckoutSession(
+    const session = await stripeService.createCheckoutSession(
       userId,
       tier.name.toLowerCase(),
       `price_${tier.name.toLowerCase()}`
     );
+
+    return session;
   }
 
   async getSubscriptionStatus(userId: string) {
@@ -93,7 +93,7 @@ export class BillingService extends BaseService {
       .limit(1)
       .single();
 
-    return data;
+    return data || null;
   }
 }
 

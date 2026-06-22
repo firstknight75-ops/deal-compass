@@ -10,28 +10,47 @@ export const Route = createFileRoute('/billing')({
   component: BillingPage,
 });
 
-const tiers = [
-  { name: 'Bronze', price: 49, credits: 10, features: ['Opportunity scores', 'Basic alerts'] },
-  { name: 'Silver', price: 149, credits: 30, features: ['Pre-deals', 'AI Agent basic'] },
-  { name: 'Gold', price: 349, credits: 100, features: ['Market Intelligence', 'Priority matching'] },
-  { name: 'Platinum', price: 749, credits: 9999, features: ['Unlimited credits', 'Advanced AI'] },
-];
+interface Tier {
+  name: string;
+  price: number;
+  credits: number;
+  features: string[];
+}
+
+interface PlanData {
+  tier: string;
+  credits: number;
+  tiers?: Tier[];
+}
 
 function BillingPage() {
   const { t } = useI18n();
-  const [plan, setPlan] = useState({ tier: 'free', credits: 0 });
+  const [plan, setPlan] = useState<PlanData>({ tier: 'free', credits: 0 });
+  const [tiers, setTiers] = useState<Tier[]>([]);
   const [loading, setLoading] = useState(false);
 
-  // Load real data from API
+  // Load real data from API (includes tiers + current plan)
   const loadPlan = async () => {
     try {
       const res = await fetch('/api/billing');
       if (res.ok) {
-        const data = await res.json();
+        const data: PlanData = await res.json();
         setPlan(data);
+        if (data.tiers && data.tiers.length > 0) {
+          setTiers(data.tiers);
+        }
       }
     } catch (e) {
-      // Fallback will be handled by real auth later
+      console.error('[Billing] Failed to load plan', e);
+      // Fallback tiers (only if API fails - for offline resilience)
+      if (tiers.length === 0) {
+        setTiers([
+          { name: 'Bronze', price: 49, credits: 10, features: ['Opportunity scores', 'Basic alerts'] },
+          { name: 'Silver', price: 149, credits: 30, features: ['Pre-deals', 'AI Agent basic'] },
+          { name: 'Gold', price: 349, credits: 100, features: ['Market Intelligence', 'Priority matching'] },
+          { name: 'Platinum', price: 749, credits: 9999, features: ['Unlimited credits', 'Advanced AI', 'Dedicated manager'] },
+        ]);
+      }
     }
   };
 
@@ -73,6 +92,8 @@ function BillingPage() {
       if (result.success) {
         toast.success(`+${amt} credits purchased`);
         await loadPlan();
+      } else {
+        toast.error(result.error || 'Purchase failed');
       }
     } catch (err) {
       toast.error('Purchase failed');
@@ -88,12 +109,18 @@ function BillingPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'create_checkout', tier }),
       });
-      const { url } = await res.json();
-      if (url) window.location.href = url;
+      const data = await res.json();
+      if (data.url) {
+        window.location.href = data.url;
+      } else if (data.error) {
+        toast.error(data.error);
+      }
     } catch (err) {
-      toast.error('Checkout failed');
+      toast.error('Checkout failed. Ensure Stripe key is configured.');
     }
   };
+
+  const currentTiers = tiers.length > 0 ? tiers : [];
 
   return (
     <div>
@@ -116,7 +143,7 @@ function BillingPage() {
         </div>
 
         <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-4">
-          {tiers.map((t, idx) => (
+          {currentTiers.map((t, idx) => (
             <Card key={idx} className={plan.tier === t.name.toLowerCase() ? 'border-gold' : ''}>
               <CardHeader>
                 <CardTitle>{t.name} — ${t.price}/mo</CardTitle>
@@ -141,7 +168,8 @@ function BillingPage() {
         </div>
 
         <div className="text-xs text-muted-foreground mt-10">
-          Payments processed securely via Stripe. Credits are non-refundable.
+          Payments processed securely via Stripe. Credits are non-refundable. 
+          {process.env.NODE_ENV !== 'production' && ' (Development mode: configure STRIPE_SECRET_KEY for live checkout)'}
         </div>
       </div>
     </div>
