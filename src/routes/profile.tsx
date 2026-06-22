@@ -2,7 +2,6 @@ import { createFileRoute } from '@tanstack/react-router';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
-import { getUser, updateUser } from '../lib/mockData';
 import { useI18n } from '../lib/i18n';
 import { AppHeader } from '../components/AppHeader';
 import { useState } from 'react';

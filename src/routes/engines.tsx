@@ -3,7 +3,6 @@ import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card'
 import { Button } from '../components/ui/button';
 import { Badge } from '../components/ui/badge';
 import { AppHeader } from '../components/AppHeader';
-import { getOpportunities, runRadarScan } from '../lib/mockData';
 import { calculateQualityScore } from '../lib/engineUtils';
 import { useState } from 'react';
 import { toast } from 'sonner';

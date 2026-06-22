@@ -3,7 +3,6 @@ import { LanguageSwitcher } from './LanguageSwitcher';
 import { useI18n } from '../lib/i18n';
 import { Button } from './ui/button';
 import { User, CreditCard } from 'lucide-react';
-import { getUser } from '../lib/mockData';
 
 export function AppHeader() {
   const { t } = useI18n();

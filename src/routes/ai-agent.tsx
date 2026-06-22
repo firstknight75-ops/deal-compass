@@ -4,7 +4,6 @@ import { Card, CardContent, CardHeader } from '../components/ui/card';
 import { Button } from '../components/ui/button';
 import { Textarea } from '../components/ui/textarea';
 import { Badge } from '../components/ui/badge';
-import { getOpportunities, Opportunity } from '../lib/mockData';
 import { useI18n } from '../lib/i18n';
 import { AppHeader } from '../components/AppHeader';
 import { aiSourcingAgentService } from '../services/ai-sourcing.service';
