@@ -6,9 +6,9 @@ import { Input } from '../components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
 import { Badge } from '../components/ui/badge';
 import { getOpportunities, unlockContact, addOpportunity, Opportunity, useCredits, getUser } from '../lib/mockData';
-import { generateLeadQuality } from '../lib/engineUtils';
 import { useI18n } from '../lib/i18n';
 import { AppHeader } from '../components/AppHeader';
+import { ScoreBreakdown } from '../components/ScoreBreakdown';
 import { toast } from 'sonner';
 
 export const Route = createFileRoute('/opportunities')({
@@ -147,13 +147,10 @@ function OpportunitiesPage() {
                     )}
                   </div>
 
-                  {/* Engine 3: Detailed Score Breakdown */}
+                  {/* Engine 3: Visual Score Breakdown */}
                   {opp.scoreBreakdown && (
-                    <div className="text-[10px] mt-2 pt-2 border-t text-muted-foreground flex gap-3 flex-wrap">
-                      <span>Completeness: {opp.scoreBreakdown.fieldCompleteness}</span>
-                      <span>Source: {opp.scoreBreakdown.sourceReliability}</span>
-                      <span>Freshness: {opp.scoreBreakdown.dataFreshness}</span>
-                      <span>Cross-source: {opp.scoreBreakdown.crossSourceConfirmation}</span>
+                    <div className="mt-3 pt-3 border-t">
+                      <ScoreBreakdown breakdown={opp.scoreBreakdown} compact={true} />
                     </div>
                   )}
                 </CardContent>

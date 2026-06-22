@@ -21,10 +21,10 @@ export function AppHeader() {
           <nav className="hidden md:flex items-center gap-6 text-sm">
             <Link to="/engines" className="hover:text-gold transition">Engines</Link>
             <Link to="/trade-radar" className="hover:text-gold transition">{t('nav.radar')}</Link>
-            <Link to="/normalization" className="hover:text-gold transition">Norm.</Link>
             <Link to="/opportunities" className="hover:text-gold transition">{t('nav.opportunities')}</Link>
             <Link to="/ai-agent" className="hover:text-gold transition">{t('nav.aiAgent')}</Link>
             <Link to="/market" className="hover:text-gold transition">{t('nav.market')}</Link>
+            <Link to="/engine-status" className="hover:text-gold transition text-xs">Status</Link>
           </nav>
         </div>
 

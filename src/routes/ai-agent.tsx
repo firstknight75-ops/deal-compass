@@ -7,6 +7,7 @@ import { Badge } from '../components/ui/badge';
 import { getOpportunities, Opportunity } from '../lib/mockData';
 import { useI18n } from '../lib/i18n';
 import { AppHeader } from '../components/AppHeader';
+import { parseSourcingRequestWithLLM } from '../lib/anthropicStub';
 import { toast } from 'sonner';
 
 export const Route = createFileRoute('/ai-agent')({
@@ -61,16 +62,22 @@ function AISourcingAgent() {
     if (!query.trim()) return;
     
     setLoading(true);
-    await new Promise(r => setTimeout(r, 820));
-    
-    const parsed = mockAIParse(query);
+
+    // Use real Anthropic stub (can be switched to real API)
+    const parsed = await parseSourcingRequestWithLLM(query);
     setParsedFilters(parsed);
-    
+
     const all = getOpportunities();
     const filtered = all.filter(o => {
       let match = true;
-      if (parsed.product) match = match && o.product.toLowerCase().includes(parsed.product.toLowerCase().slice(0, 5));
-      if (parsed.origin_country) match = match && (o.origin.toLowerCase().includes(parsed.origin_country.toLowerCase()) || o.exportCountry.toLowerCase().includes(parsed.origin_country.toLowerCase()));
+      if (parsed.product_name || parsed.product) {
+        const p = (parsed.product_name || parsed.product || '').toLowerCase();
+        match = match && o.product.toLowerCase().includes(p.slice(0, 5));
+      }
+      if (parsed.origin_country) {
+        match = match && (o.origin.toLowerCase().includes(parsed.origin_country.toLowerCase()) || 
+                          o.exportCountry.toLowerCase().includes(parsed.origin_country.toLowerCase()));
+      }
       if (parsed.min_quantity) match = match && o.quantity >= parsed.min_quantity * 0.6;
       if (parsed.incoterm) match = match && o.incoterm === parsed.incoterm;
       return match;
@@ -158,8 +165,12 @@ function AISourcingAgent() {
           </div>
         )}
 
-        <div className="mt-14 text-xs text-muted-foreground border-t pt-4">
-          In production this uses a real Anthropic Claude call. The parser follows the exact SRS structure (product, origin_country, export_country, min_quantity, incoterm, delivery_window).
+        <div className="mt-14 text-xs text-muted-foreground border-t pt-4 space-y-1">
+          <div>
+            <strong>LLM Integration:</strong> Using Anthropic stub (<code>parseSourcingRequestWithLLM</code>). 
+            Toggle <code>useRealLLM: true</code> + pass API key for live Claude calls.
+          </div>
+          <div>Parser follows exact SRS structure: product_name, origin_country, export_country, min_quantity, incoterm, delivery_deadline.</div>
         </div>
       </div>
     </div>

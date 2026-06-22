@@ -18,6 +18,7 @@ import { Route as NormalizationRouteImport } from './routes/normalization'
 import { Route as MarketRouteImport } from './routes/market'
 import { Route as ListingRouteImport } from './routes/listing'
 import { Route as EnginesRouteImport } from './routes/engines'
+import { Route as EngineStatusRouteImport } from './routes/engine-status'
 import { Route as DashboardRouteImport } from './routes/dashboard'
 import { Route as BillingRouteImport } from './routes/billing'
 import { Route as AiAgentRouteImport } from './routes/ai-agent'
@@ -68,6 +69,11 @@ const EnginesRoute = EnginesRouteImport.update({
   path: '/engines',
   getParentRoute: () => rootRouteImport,
 } as any)
+const EngineStatusRoute = EngineStatusRouteImport.update({
+  id: '/engine-status',
+  path: '/engine-status',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const DashboardRoute = DashboardRouteImport.update({
   id: '/dashboard',
   path: '/dashboard',
@@ -94,6 +100,7 @@ export interface FileRoutesByFullPath {
   '/ai-agent': typeof AiAgentRoute
   '/billing': typeof BillingRoute
   '/dashboard': typeof DashboardRoute
+  '/engine-status': typeof EngineStatusRoute
   '/engines': typeof EnginesRoute
   '/listing': typeof ListingRoute
   '/market': typeof MarketRoute
@@ -109,6 +116,7 @@ export interface FileRoutesByTo {
   '/ai-agent': typeof AiAgentRoute
   '/billing': typeof BillingRoute
   '/dashboard': typeof DashboardRoute
+  '/engine-status': typeof EngineStatusRoute
   '/engines': typeof EnginesRoute
   '/listing': typeof ListingRoute
   '/market': typeof MarketRoute
@@ -125,6 +133,7 @@ export interface FileRoutesById {
   '/ai-agent': typeof AiAgentRoute
   '/billing': typeof BillingRoute
   '/dashboard': typeof DashboardRoute
+  '/engine-status': typeof EngineStatusRoute
   '/engines': typeof EnginesRoute
   '/listing': typeof ListingRoute
   '/market': typeof MarketRoute
@@ -142,6 +151,7 @@ export interface FileRouteTypes {
     | '/ai-agent'
     | '/billing'
     | '/dashboard'
+    | '/engine-status'
     | '/engines'
     | '/listing'
     | '/market'
@@ -157,6 +167,7 @@ export interface FileRouteTypes {
     | '/ai-agent'
     | '/billing'
     | '/dashboard'
+    | '/engine-status'
     | '/engines'
     | '/listing'
     | '/market'
@@ -172,6 +183,7 @@ export interface FileRouteTypes {
     | '/ai-agent'
     | '/billing'
     | '/dashboard'
+    | '/engine-status'
     | '/engines'
     | '/listing'
     | '/market'
@@ -188,6 +200,7 @@ export interface RootRouteChildren {
   AiAgentRoute: typeof AiAgentRoute
   BillingRoute: typeof BillingRoute
   DashboardRoute: typeof DashboardRoute
+  EngineStatusRoute: typeof EngineStatusRoute
   EnginesRoute: typeof EnginesRoute
   ListingRoute: typeof ListingRoute
   MarketRoute: typeof MarketRoute
@@ -264,6 +277,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof EnginesRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/engine-status': {
+      id: '/engine-status'
+      path: '/engine-status'
+      fullPath: '/engine-status'
+      preLoaderRoute: typeof EngineStatusRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/dashboard': {
       id: '/dashboard'
       path: '/dashboard'
@@ -300,6 +320,7 @@ const rootRouteChildren: RootRouteChildren = {
   AiAgentRoute: AiAgentRoute,
   BillingRoute: BillingRoute,
   DashboardRoute: DashboardRoute,
+  EngineStatusRoute: EngineStatusRoute,
   EnginesRoute: EnginesRoute,
   ListingRoute: ListingRoute,
   MarketRoute: MarketRoute,
