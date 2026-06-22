@@ -77,21 +77,15 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "Lovable App" },
-      { name: "description", content: "Lovable Generated Project" },
-      { name: "author", content: "Lovable" },
-      { property: "og:title", content: "Lovable App" },
-      { property: "og:description", content: "Lovable Generated Project" },
+      { title: "ديل كومباس AI+ — نظام تشغيل التجارة العالمية" },
+      { name: "description", content: "محطة استخبارات تجارية تجمع ست محركات ذكاء اصطناعي لاكتشاف الفرص، التحقق من الموردين، وإغلاق الصفقات عبر الحدود." },
+      { name: "author", content: "DealCompass" },
+      { property: "og:title", content: "ديل كومباس AI+ — نظام تشغيل التجارة العالمية" },
+      { property: "og:description", content: "ست محركات ذكاء اصطناعي تحت محطة واحدة للتجار عبر الحدود." },
       { property: "og:type", content: "website" },
-      { name: "twitter:card", content: "summary" },
-      { name: "twitter:site", content: "@Lovable" },
+      { name: "twitter:card", content: "summary_large_image" },
     ],
-    links: [
-      {
-        rel: "stylesheet",
-        href: appCss,
-      },
-    ],
+    links: [{ rel: "stylesheet", href: appCss }],
   }),
   shellComponent: RootShell,
   component: RootComponent,
@@ -101,7 +95,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
 
 function RootShell({ children }: { children: ReactNode }) {
   return (
-    <html lang="en">
+    <html lang="ar" dir="rtl">
       <head>
         <HeadContent />
       </head>
