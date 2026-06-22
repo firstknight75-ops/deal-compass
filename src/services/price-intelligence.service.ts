@@ -1,3 +1,4 @@
+import { logger } from "../lib/logger";
 /**
  * Price Intelligence Engine (Phase 9) — Production
  */

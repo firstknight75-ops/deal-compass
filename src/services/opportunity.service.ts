@@ -1,6 +1,8 @@
 import { BaseService } from './base.service';
 import { supabaseAdmin } from '../lib/supabase/server';
 import { calculateQualityScore } from '../lib/engineUtils';
+import { cache, getOrSet } from '../lib/cache';
+import { logger } from '../lib/logger';
 
 export interface Opportunity {
   id: string;
@@ -32,33 +34,40 @@ export class OpportunityService extends BaseService {
     type?: string;
     minScore?: number;
   } = {}): Promise<Opportunity[]> {
-    let query = supabaseAdmin
-      .from('products')
-      .select('*')
-      .eq('is_active', true)
-      .order('score', { ascending: false });
+    const cacheKey = `opps:${JSON.stringify(filters)}`;
 
-    if (filters.product) {
-      query = query.ilike('product_name', `%${filters.product}%`);
-    }
-    if (filters.origin) {
-      query = query.or(`origin_country.ilike.%${filters.origin}%,export_country.ilike.%${filters.origin}%`);
-    }
-    if (filters.type) {
-      query = query.eq('type', filters.type);
-    }
-    if (filters.minScore) {
-      query = query.gte('score', filters.minScore);
-    }
+    return getOrSet(cacheKey, async () => {
+      let query = supabaseAdmin
+        .from('products')
+        .select('*')
+        .eq('is_active', true)
+        .order('score', { ascending: false });
 
-    const { data, error } = await query.limit(200);
+      if (filters.product) {
+        query = query.ilike('product_name', `%${filters.product}%`);
+      }
+      if (filters.origin) {
+        query = query.or(`origin_country.ilike.%${filters.origin}%,export_country.ilike.%${filters.origin}%`);
+      }
+      if (filters.type) {
+        query = query.eq('type', filters.type);
+      }
+      if (filters.minScore) {
+        query = query.gte('score', filters.minScore);
+      }
 
-    if (error) {
-      this.log('error', 'Failed to fetch opportunities', { error });
-      throw error;
-    }
+      const { data, error } = await query.limit(200);
 
-    return (data || []).map(this.mapToOpportunity);
+      if (error) {
+        this.log('error', 'Failed to fetch opportunities', { error });
+        logger.error('Opportunity fetch failed', { filters, error: String(error) });
+        throw error;
+      }
+
+      const result = (data || []).map(this.mapToOpportunity);
+      logger.info('Opportunities fetched from DB', { count: result.length, filters });
+      return result;
+    }, 45); // 45s cache
   }
 
   async getOpportunityById(id: string): Promise<Opportunity | null> {

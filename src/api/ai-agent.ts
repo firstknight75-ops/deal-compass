@@ -1,26 +1,29 @@
 /**
- * Real AI Sourcing Agent API Endpoint
+ * Real AI Sourcing Agent API Endpoint (DI wired)
  */
-import { aiSourcingAgentService } from '../services/ai-sourcing.service';
+import { container } from '../lib/di';
+import { withRateLimit } from './middleware/rate-limit';
+import { withErrorHandling } from '../lib/errors';
+import { requireAuth } from './middleware/auth';
 
-export async function POST(request: Request) {
-  try {
-    const { query } = await request.json();
+async function aiAgentHandler(request: Request) {
+  const aiSourcingAgentService = container.get<any>('aiSourcingAgentService');
 
-    if (!query || typeof query !== 'string') {
-      return Response.json({ error: 'query is required' }, { status: 400 });
-    }
+  const auth = await requireAuth(request);
+  const { query } = await request.json();
 
-    const result = await aiSourcingAgentService.processNaturalLanguageQuery(query);
-
-    return Response.json({
-      success: true,
-      parsed: result.parsed_filters,
-      results: result.results,
-      total: result.total_matches,
-    });
-  } catch (error: any) {
-    console.error('[AI Agent API]', error);
-    return Response.json({ error: error.message || 'AI processing failed' }, { status: 500 });
+  if (!query || typeof query !== 'string') {
+    return Response.json({ error: 'query is required' }, { status: 400 });
   }
+
+  const result = await aiSourcingAgentService.processNaturalLanguageQuery(query);
+
+  return Response.json({
+    success: true,
+    parsed: result.parsed_filters,
+    results: result.results,
+    total: result.total_matches,
+  });
 }
+
+export const POST = withRateLimit(withErrorHandling(aiAgentHandler), { max: 20 }); // AI is expensive - strict limit

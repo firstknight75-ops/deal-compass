@@ -1,3 +1,4 @@
+import { logger } from "../lib/logger";
 /**
  * Compliance Engine (Phase 12) — Production
  */

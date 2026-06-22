@@ -1,8 +1,9 @@
 /**
  * Production API Router
  * All business logic goes through here — never in components.
+ * Uses DI for observability where needed.
  */
-
+import { container } from '../lib/di';
 import { GET as opportunitiesGET, POST as opportunitiesPOST } from './opportunities';
 import { GET as userGET, POST as userPOST } from './user';
 import { GET as preDealsGET, POST as preDealsPOST } from './pre-deals';
@@ -13,6 +14,8 @@ import { GET as creditsGET, POST as creditsPOST } from './credits';
 import { GET as healthGET } from './health';
 import { withRateLimit } from './middleware/rate-limit';
 import { withErrorHandling } from '../lib/errors';
+import { logger } from '../lib/logger';
+import { getConfig } from '../lib/config';
 
 export async function handleApiRequest(request: Request): Promise<Response> {
   const url = new URL(request.url);

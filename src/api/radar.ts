@@ -1,46 +1,47 @@
-import { tradeRadarService } from '../services/trade-radar.service';
-import { opportunityService } from '../services/opportunity.service';
+import { container } from '../lib/di';
+import { withRateLimit } from './middleware/rate-limit';
+import { withErrorHandling } from '../lib/errors';
+import { requireAuth } from './middleware/auth';
 
-// Production Trade Radar API
+// Production Trade Radar API (DI wired)
 
-export async function GET(request: Request) {
+async function radarGETHandler(request: Request) {
+  const opportunityService = container.get<any>('opportunityService');
+
+  await requireAuth(request);
   const url = new URL(request.url);
   const limit = parseInt(url.searchParams.get('limit') || '12');
 
-  try {
-    const opps = await opportunityService.getActiveOpportunities({});
-    return Response.json({ 
-      data: opps.slice(0, limit), 
-      count: opps.length,
-      sources: 128,
-      lastCrawl: new Date(Date.now() - 38000).toISOString()
-    });
-  } catch (error: any) {
-    console.error('[API radar] GET error', error);
-    return Response.json({ error: 'Failed to fetch radar data' }, { status: 500 });
-  }
+  const opps = await opportunityService.getActiveOpportunities({});
+  return Response.json({ 
+    data: opps.slice(0, limit), 
+    count: opps.length,
+    sources: 128,
+    lastCrawl: new Date(Date.now() - 38000).toISOString()
+  });
 }
 
-export async function POST(request: Request) {
+async function radarPOSTHandler(request: Request) {
+  const tradeRadarService = container.get<any>('tradeRadarService');
+  const opportunityService = container.get<any>('opportunityService');
+
+  await requireAuth(request);
   const body = await request.json().catch(() => ({}));
   const sourceId = body.sourceId || 'default';
 
-  try {
-    const result = await tradeRadarService.runCrawlForSource(sourceId);
-    
-    // Return recent opportunities as "fresh"
-    const fresh = await opportunityService.getActiveOpportunities({});
-    
-    return Response.json({ 
-      data: { 
-        recordsProcessed: result.recordsProcessed,
-        newRecords: result.newRecords,
-        freshOpportunities: fresh.slice(0, 8)
-      },
-      message: `${result.newRecords} new opportunities ingested`
-    });
-  } catch (error: any) {
-    console.error('[API radar] POST error', error);
-    return Response.json({ error: 'Radar scan failed' }, { status: 500 });
-  }
+  const result = await tradeRadarService.runCrawlForSource(sourceId);
+  
+  const fresh = await opportunityService.getActiveOpportunities({});
+  
+  return Response.json({ 
+    data: { 
+      recordsProcessed: result.recordsProcessed,
+      newRecords: result.newRecords,
+      freshOpportunities: fresh.slice(0, 8)
+    },
+    message: `${result.newRecords} new opportunities ingested`
+  });
 }
+
+export const GET = withRateLimit(withErrorHandling(radarGETHandler));
+export const POST = withRateLimit(withErrorHandling(radarPOSTHandler));

@@ -1,6 +1,8 @@
 import { BaseService } from './base.service';
 import { supabaseAdmin } from '../lib/supabase/server';
 import { notificationService } from './notification.service';
+import { getOrSet } from '../lib/cache';
+import { logger } from '../lib/logger';
 
 export class PreDealService extends BaseService {
   constructor() {
@@ -8,67 +10,70 @@ export class PreDealService extends BaseService {
   }
 
   async generatePreDeals(): Promise<number> {
-    // Find high-quality matching pairs
-    const { data: supplies } = await supabaseAdmin
-      .from('products')
-      .select('*')
-      .eq('type', 'sell')
-      .gte('score', 75)
-      .limit(100);
+    // Use cache for the expensive matching query
+    return getOrSet('predeals:generated', async () => {
+      const { data: supplies } = await supabaseAdmin
+        .from('products')
+        .select('*')
+        .eq('type', 'sell')
+        .gte('score', 75)
+        .limit(100);
 
-    const { data: demands } = await supabaseAdmin
-      .from('products')
-      .select('*')
-      .eq('type', 'buy')
-      .limit(100);
+      const { data: demands } = await supabaseAdmin
+        .from('products')
+        .select('*')
+        .eq('type', 'buy')
+        .limit(100);
 
-    let created = 0;
+      let created = 0;
 
-    for (const supply of supplies || []) {
-      for (const demand of demands || []) {
-        if (this.isGoodMatch(supply, demand)) {
-          const matchScore = this.calculateMatchScore(supply, demand);
+      for (const supply of supplies || []) {
+        for (const demand of demands || []) {
+          if (this.isGoodMatch(supply, demand)) {
+            const matchScore = this.calculateMatchScore(supply, demand);
 
-          const { data: existing } = await supabaseAdmin
-            .from('pre_deals')
-            .select('id')
-            .eq('supply_opportunity_id', supply.id)
-            .eq('demand_opportunity_id', demand.id)
-            .maybeSingle();
+            const { data: existing } = await supabaseAdmin
+              .from('pre_deals')
+              .select('id')
+              .eq('supply_opportunity_id', supply.id)
+              .eq('demand_opportunity_id', demand.id)
+              .maybeSingle();
 
-          if (existing) continue;
+            if (existing) continue;
 
-          const { data: preDeal } = await supabaseAdmin
-            .from('pre_deals')
-            .insert({
-              supply_opportunity_id: supply.id,
-              demand_opportunity_id: demand.id,
-              suggested_price: Math.round(supply.price * 0.97),
-              suggested_quantity: Math.min(supply.quantity, demand.quantity || supply.quantity),
-              match_score: matchScore,
-              payment_recommendation: 'LC at sight or Escrow',
-              status: 'pending',
-              expires_at: new Date(Date.now() + 1000 * 3600 * 72).toISOString(),
-            })
-            .select()
-            .single();
+            const { data: preDeal } = await supabaseAdmin
+              .from('pre_deals')
+              .insert({
+                supply_opportunity_id: supply.id,
+                demand_opportunity_id: demand.id,
+                suggested_price: Math.round(supply.price * 0.97),
+                suggested_quantity: Math.min(supply.quantity, demand.quantity || supply.quantity),
+                match_score: matchScore,
+                payment_recommendation: 'LC at sight or Escrow',
+                status: 'pending',
+                expires_at: new Date(Date.now() + 1000 * 3600 * 72).toISOString(),
+              })
+              .select()
+              .single();
 
-          created++;
+            created++;
 
-          // Notify both parties
-          await notificationService.sendNotification({
-            userId: supply.company_id || 'system',
-            type: 'pre_deal_generated',
-            title: 'New Pre-Deal Match',
-            message: `Match found for ${supply.product_name} (${matchScore}% match)`,
-            metadata: { pre_deal_id: preDeal?.id },
-          });
+            // Notify both parties
+            await notificationService.sendNotification({
+              userId: supply.company_id || 'system',
+              type: 'pre_deal_generated',
+              title: 'New Pre-Deal Match',
+              message: `Match found for ${supply.product_name} (${matchScore}% match)`,
+              metadata: { pre_deal_id: preDeal?.id },
+            });
+          }
         }
       }
-    }
 
-    this.log('info', `Generated ${created} pre-deals`);
-    return created;
+      this.log('info', `Generated ${created} pre-deals`);
+      logger.info('Pre-deals generated', { created });
+      return created;
+    }, 180); // 3 minute cache for expensive generation
   }
 
   private isGoodMatch(supply: any, demand: any): boolean {

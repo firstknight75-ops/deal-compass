@@ -1,14 +1,21 @@
 /**
  * Stripe Webhook Handler — Production
+ * Note: Webhooks usually use signature verification instead of user auth.
+ * Protected with rate limiting + error handling (no requireAuth as it's webhook).
  */
-import { stripeService } from '../services/stripe.service';
 import { subscriptionService } from '../services/subscription.service';
+import { withRateLimit } from './middleware/rate-limit';
+import { withErrorHandling } from '../lib/errors';
 
-export async function POST(request: Request) {
-  const signature = request.headers.get('stripe-signature');
+async function stripeWebhookHandler(request: Request) {
   const body = await request.text();
+  const signature = request.headers.get('stripe-signature');
 
-  // In production verify signature using stripe.webhooks.constructEvent
+  // Basic signature check stub (real impl would use stripe lib verify)
+  if (!signature) {
+    return Response.json({ error: 'Missing signature' }, { status: 400 });
+  }
+
   try {
     const event = JSON.parse(body);
 
@@ -22,11 +29,14 @@ export async function POST(request: Request) {
     }
 
     if (event.type === 'invoice.paid') {
-      // Handle recurring billing
+      // recurring billing logic
     }
 
     return Response.json({ received: true });
-  } catch (err) {
+  } catch (err: any) {
+    console.error('[Stripe Webhook]', err);
     return Response.json({ error: 'Webhook error' }, { status: 400 });
   }
 }
+
+export const POST = withRateLimit(withErrorHandling(stripeWebhookHandler), { max: 30 });

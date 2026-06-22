@@ -1,3 +1,4 @@
+import { logger } from "../lib/logger";
 /**
  * Freight Intelligence Engine (Phase 10) — Production
  */

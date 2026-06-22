@@ -1,3 +1,4 @@
+import { logger } from "../lib/logger";
 /**
  * Company Intelligence Engine (Engine 4 + Phase 5)
  * Real enrichment, verification, scoring.

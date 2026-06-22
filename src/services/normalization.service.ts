@@ -1,10 +1,12 @@
 /**
  * AI Normalization Engine — Production Implementation
  * Phase 3
+ * + Caching on normalize (high traffic batch)
  */
 
 import { BaseService } from './base.service';
 import { supabaseAdmin } from '../lib/supabase/server';
+import { getOrSet } from '../lib/cache';
 
 export interface NormalizedData {
   product_name: string;
@@ -27,31 +29,34 @@ export class NormalizationService extends BaseService {
 
   /**
    * Normalize a raw document using structured extraction.
-   * In production this would call Anthropic + validation.
+   * Cached for repeated raw inputs.
    */
   async normalizeRawDocument(rawDocumentId: string, rawData: any): Promise<NormalizedData> {
-    // Production-grade extraction (currently deterministic + LLM-ready)
-    const normalized: NormalizedData = {
-      product_name: this.cleanProduct(rawData.product || rawData.product_name),
-      specification: rawData.specification,
-      category: this.inferCategory(rawData.product || rawData.product_name),
-      quantity: this.parseQuantity(rawData.quantity),
-      unit: this.normalizeUnit(rawData.unit),
-      price: rawData.price,
-      currency: rawData.currency || 'USD',
-      origin_country: rawData.origin || rawData.origin_country,
-      export_country: rawData.exportCountry || rawData.export_country,
-      incoterm: rawData.incoterm,
-      confidence_score: 0.89,
-    };
+    const cacheKey = `norm:${rawDocumentId}:${JSON.stringify(rawData).slice(0,64)}`;
 
-    // Persist
-    await supabaseAdmin.from('normalized_records').insert({
-      raw_document_id: rawDocumentId,
-      ...normalized,
-    });
+    return getOrSet(cacheKey, async () => {
+      const normalized: NormalizedData = {
+        product_name: this.cleanProduct(rawData.product || rawData.product_name),
+        specification: rawData.specification,
+        category: this.inferCategory(rawData.product || rawData.product_name),
+        quantity: this.parseQuantity(rawData.quantity),
+        unit: this.normalizeUnit(rawData.unit),
+        price: rawData.price,
+        currency: rawData.currency || 'USD',
+        origin_country: rawData.origin || rawData.origin_country,
+        export_country: rawData.exportCountry || rawData.export_country,
+        incoterm: rawData.incoterm,
+        confidence_score: 0.89,
+      };
 
-    return normalized;
+      // Persist
+      await supabaseAdmin.from('normalized_records').insert({
+        raw_document_id: rawDocumentId,
+        ...normalized,
+      });
+
+      return normalized;
+    }, 120); // 2min cache for norm
   }
 
   private cleanProduct(name: string): string {

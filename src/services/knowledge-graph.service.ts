@@ -1,3 +1,4 @@
+import { logger } from "../lib/logger";
 /**
  * Trade Knowledge Graph Service (Phase 6)
  * This is the proprietary data moat.

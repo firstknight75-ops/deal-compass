@@ -1,72 +1,42 @@
-import { createServerSupabaseClient } from '../lib/supabase/server';
-import { userService } from '../services/user.service';
-import { creditsService } from '../services/credits.service';
+import { container } from '../lib/di';
+import { withRateLimit } from './middleware/rate-limit';
+import { withErrorHandling } from '../lib/errors';
+import { requireAuth } from './middleware/auth';
 
-// Production API for user
+// Production API for user (DI wired)
 
-export async function GET(request: Request) {
-  const authHeader = request.headers.get('Authorization');
-  const accessToken = authHeader?.replace('Bearer ', '');
+async function userGETHandler(request: Request) {
+  const userService = container.get<any>('userService');
 
-  if (!accessToken) {
-    return Response.json({ error: 'Unauthorized' }, { status: 401 });
+  const auth = await requireAuth(request);
+  const profile = await userService.getUserById(auth.user.id);
+
+  if (!profile) {
+    return Response.json({ 
+      data: { 
+        id: auth.user.id, 
+        email: auth.user.email || 'unknown',
+        full_name: auth.user.full_name || 'User',
+        country: auth.user.country || 'Iraq',
+        role: auth.user.role || 'user',
+        account_tier: auth.user.account_tier || 'silver',
+        credits_balance: auth.user.credits_balance || 0,
+        kyc_status: auth.user.kyc_status || 'pending'
+      } 
+    });
   }
 
-  try {
-    const supabase = createServerSupabaseClient(accessToken);
-    const { data: { user } } = await supabase.auth.getUser();
-
-    if (!user) {
-      return Response.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    const profile = await userService.getUserById(user.id);
-    if (!profile) {
-      return Response.json({ 
-        data: { 
-          id: user.id, 
-          email: user.email || 'unknown',
-          full_name: user.user_metadata?.full_name || 'User',
-          country: 'Iraq',
-          role: 'user',
-          account_tier: 'silver',
-          credits_balance: 0,
-          kyc_status: 'pending'
-        } 
-      });
-    }
-
-    return Response.json({ data: profile });
-  } catch (error: any) {
-    console.error('[API user] GET error', error);
-    return Response.json({ error: 'Failed to fetch user' }, { status: 500 });
-  }
+  return Response.json({ data: profile });
 }
 
-export async function POST(request: Request) {
+async function userPOSTHandler(request: Request) {
+  const userService = container.get<any>('userService');
+
+  const auth = await requireAuth(request);
   const body = await request.json();
-  const authHeader = request.headers.get('Authorization');
-  const accessToken = authHeader?.replace('Bearer ', '');
-
-  const authHeader = request.headers.get('Authorization');
-  const accessToken = authHeader?.replace('Bearer ', '');
-
-  if (!accessToken) {
-    return Response.json({ error: 'Unauthorized' }, { status: 401 });
-  }
-
-  try {
-    const supabase = createServerSupabaseClient(accessToken);
-    const { data: { user } } = await supabase.auth.getUser();
-
-    if (!user) {
-      return Response.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    const updated = await userService.updateUser(user.id, body);
-    return Response.json({ data: updated });
-  } catch (error: any) {
-    console.error('[API user] POST error', error);
-    return Response.json({ error: 'Failed to update user' }, { status: 500 });
-  }
+  const updated = await userService.updateUser(auth.user.id, body);
+  return Response.json({ data: updated });
 }
+
+export const GET = withRateLimit(withErrorHandling(userGETHandler), { max: 60 });
+export const POST = withRateLimit(withErrorHandling(userPOSTHandler), { max: 20 });

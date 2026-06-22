@@ -1,6 +1,8 @@
 import { BaseService } from './base.service';
 import { supabaseAdmin } from '../lib/supabase/server';
 import { z } from 'zod';
+import { getOrSet } from '../lib/cache';
+import { logger } from '../lib/logger';
 
 export interface User {
   id: string;
@@ -25,17 +27,22 @@ export class UserService extends BaseService {
   }
 
   async getUserById(userId: string): Promise<User | null> {
-    const { data, error } = await supabaseAdmin
-      .from('users')
-      .select('*')
-      .eq('id', userId)
-      .single();
+    const cacheKey = `user:${userId}`;
 
-    if (error) {
-      this.log('error', 'getUserById failed', { userId, error });
-      return null;
-    }
-    return data;
+    return getOrSet(cacheKey, async () => {
+      const { data, error } = await supabaseAdmin
+        .from('users')
+        .select('*')
+        .eq('id', userId)
+        .single();
+
+      if (error) {
+        this.log('error', 'getUserById failed', { userId, error });
+        logger.error('User lookup failed', { userId, error: String(error) });
+        return null;
+      }
+      return data;
+    }, 120); // 2 minute cache for user profiles
   }
 
   async updateUser(userId: string, updates: z.infer<typeof UpdateUserSchema>): Promise<User> {

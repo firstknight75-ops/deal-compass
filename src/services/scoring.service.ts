@@ -1,3 +1,4 @@
+import { logger } from "../lib/logger";
 /**
  * Opportunity Scoring Engine — Production Grade (Engine 3)
  * Implements the exact 4-signal + additional factors from SRS.
@@ -5,6 +6,7 @@
 
 import { BaseService } from './base.service';
 import { supabaseAdmin } from '../lib/supabase/server';
+import { getOrSet } from '../lib/cache';
 
 export interface ScoreBreakdown {
   total: number;
