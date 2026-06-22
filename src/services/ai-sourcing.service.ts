@@ -7,7 +7,7 @@
 import { BaseService } from './base.service';
 import { supabaseAdmin } from '../lib/supabase/server';
 import { parseSourcingRequestWithLLM, StructuredSourcingFilters } from '../lib/anthropicStub';
-import { callClaude, extractStructuredTradeData } from '../lib/anthropic';
+import { parseSourcingQueryWithClaude } from '../lib/anthropic';
 import { opportunityService, Opportunity } from './opportunity.service';
 
 export interface SourcingResult {
@@ -29,8 +29,18 @@ export class AISourcingAgentService extends BaseService {
     results: SourcingResult[];
     total_matches: number;
   }> {
-    // Step 1: Real LLM / Stub parsing
-    const parsed = await parseSourcingRequestWithLLM(query, { useRealLLM: false });
+    // Step 1: Try real Claude first, fallback to high-quality stub
+    let parsed: StructuredSourcingFilters;
+    try {
+      if (process.env.ANTHROPIC_API_KEY) {
+        const claudeResult = await parseSourcingQueryWithClaude(query);
+        parsed = claudeResult.error ? await parseSourcingRequestWithLLM(query) : claudeResult;
+      } else {
+        parsed = await parseSourcingRequestWithLLM(query);
+      }
+    } catch {
+      parsed = await parseSourcingRequestWithLLM(query);
+    }
 
     this.log('info', 'Parsed sourcing request', { query, parsed });
 

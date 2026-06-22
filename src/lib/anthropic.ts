@@ -58,15 +58,32 @@ export async function callClaude(
 export async function extractStructuredTradeData(rawText: string): Promise<any> {
   const system = `You are DealCompass AI+ extraction engine. 
 Extract structured trade opportunity data from the provided text.
-Return ONLY valid JSON with these keys:
+Return ONLY valid JSON with these exact keys (no extra text):
 product_name, specification, category, quantity, unit, price, currency, 
 origin_country, export_country, incoterm, company_name, contact_name, delivery_terms, confidence`;
 
-  const { content } = await callClaude(system, `Text: ${rawText}\n\nReturn JSON only.`);
+  const { content } = await callClaude(system, `Text: ${rawText}\n\nReturn ONLY valid JSON.`);
   
   try {
-    return JSON.parse(content);
+    // Clean common LLM response issues
+    const cleaned = content.replace(/```json|```/g, '').trim();
+    return JSON.parse(cleaned);
   } catch {
     return { error: 'Failed to parse LLM response', raw: content };
+  }
+}
+
+export async function parseSourcingQueryWithClaude(query: string): Promise<any> {
+  const system = `You are DealCompass AI Sourcing Agent.
+Parse the user's natural language trade request into strict JSON.
+Only output valid JSON with these keys:
+product_name, specification, origin_country, export_country, min_quantity, unit, max_price_per_unit, incoterm, delivery_deadline, confidence`;
+
+  const { content } = await callClaude(system, query);
+  try {
+    const cleaned = content.replace(/```json|```/g, '').trim();
+    return JSON.parse(cleaned);
+  } catch {
+    return { error: true, raw: content };
   }
 }
