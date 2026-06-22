@@ -7,7 +7,7 @@ import { Badge } from '../components/ui/badge';
 import { getOpportunities, Opportunity } from '../lib/mockData';
 import { useI18n } from '../lib/i18n';
 import { AppHeader } from '../components/AppHeader';
-import { parseSourcingRequestWithLLM } from '../lib/anthropicStub';
+import { aiSourcingAgentService } from '../services/ai-sourcing.service';
 import { toast } from 'sonner';
 
 export const Route = createFileRoute('/ai-agent')({
@@ -63,32 +63,42 @@ function AISourcingAgent() {
     
     setLoading(true);
 
-    // Use real Anthropic stub (can be switched to real API)
-    const parsed = await parseSourcingRequestWithLLM(query);
-    setParsedFilters(parsed);
+    try {
+      // Call real AI Sourcing Agent service (uses Anthropic stub or real Claude)
+      const response = await fetch('/api/ai-agent', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ query }),
+      });
 
-    const all = getOpportunities();
-    const filtered = all.filter(o => {
-      let match = true;
-      if (parsed.product_name || parsed.product) {
-        const p = (parsed.product_name || parsed.product || '').toLowerCase();
-        match = match && o.product.toLowerCase().includes(p.slice(0, 5));
+      const result = await response.json();
+
+      if (result.success) {
+        setParsedFilters(result.parsed);
+        // Convert service results to local Opportunity shape for display
+        const mapped = result.results.map((r: any) => ({
+          ...r.opportunity,
+          score: r.match_score,
+          matchExplanation: r.match_explanation,
+        }));
+        setResults(mapped);
+        toast.success(`Found ${result.total} ranked opportunities`);
+      } else {
+        throw new Error(result.error);
       }
-      if (parsed.origin_country) {
-        match = match && (o.origin.toLowerCase().includes(parsed.origin_country.toLowerCase()) || 
-                          o.exportCountry.toLowerCase().includes(parsed.origin_country.toLowerCase()));
-      }
-      if (parsed.min_quantity) match = match && o.quantity >= parsed.min_quantity * 0.6;
-      if (parsed.incoterm) match = match && o.incoterm === parsed.incoterm;
-      return match;
-    });
-    
-    const ranked = filtered.sort((a, b) => b.score - a.score);
-    
-    setResults(ranked.length ? ranked : all.slice(0, 4));
-    setLoading(false);
-    
-    toast.success('AI Agent parsed request into structured filters and ranked results.');
+    } catch (err) {
+      // Fallback to local service if API not available in dev
+      const localResult = await aiSourcingAgentService.processNaturalLanguageQuery(query);
+      setParsedFilters(localResult.parsed_filters);
+      const mapped = localResult.results.map(r => ({
+        ...r.opportunity,
+        score: r.match_score,
+      }));
+      setResults(mapped);
+      toast.success('AI Agent (local) returned results');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
