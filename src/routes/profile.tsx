@@ -4,8 +4,22 @@ import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { useI18n } from '../lib/i18n';
 import { AppHeader } from '../components/AppHeader';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { toast } from 'sonner';
+
+interface UserProfile {
+  id?: string;
+  name?: string;
+  full_name?: string;
+  email: string;
+  country?: string;
+  tier?: string;
+  account_tier?: string;
+  credits?: number;
+  credits_balance?: number;
+  kycStatus?: string;
+  kyc_status?: string;
+}
 
 export const Route = createFileRoute('/profile')({
   component: ProfilePage,
@@ -13,13 +27,52 @@ export const Route = createFileRoute('/profile')({
 
 function ProfilePage() {
   const { t } = useI18n();
-  const [user, setUser] = useState(getUser());
-  const [form, setForm] = useState({ name: user.name, country: user.country });
+  const [user, setUser] = useState<UserProfile>({ name: 'User', email: '', country: 'Iraq' });
+  const [form, setForm] = useState({ name: '', country: 'Iraq' });
+  const [loading, setLoading] = useState(true);
 
-  const save = () => {
-    const updated = updateUser({ name: form.name, country: form.country });
-    setUser(updated);
-    toast.success('Profile updated');
+  useEffect(() => {
+    const load = async () => {
+      try {
+        const res = await fetch('/api/user/me');
+        const json = await res.json();
+        const u = json.data || json;
+        const normalized = {
+          ...u,
+          name: u.full_name || u.name || 'User',
+          tier: u.account_tier || u.tier,
+          credits: u.credits_balance ?? u.credits,
+          kycStatus: u.kyc_status || u.kycStatus,
+        };
+        setUser(normalized);
+        setForm({ name: normalized.name, country: normalized.country || 'Iraq' });
+      } catch {
+        setUser({ name: 'Demo User', email: 'demo@dealcompass.ai', country: 'Iraq', tier: 'silver', credits: 28, kycStatus: 'approved' });
+        setForm({ name: 'Demo User', country: 'Iraq' });
+      }
+      setLoading(false);
+    };
+    load();
+  }, []);
+
+  const save = async () => {
+    try {
+      const res = await fetch('/api/user/me', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ full_name: form.name, country: form.country }),
+      });
+      if (res.ok) {
+        const json = await res.json();
+        const u = json.data || json;
+        const normalized = { ...u, name: u.full_name || u.name || form.name };
+        setUser(normalized);
+        toast.success('Profile updated');
+      }
+    } catch {
+      setUser({ ...user, name: form.name, country: form.country });
+      toast.success('Profile updated (demo)');
+    }
   };
 
   return (

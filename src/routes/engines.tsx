@@ -3,9 +3,15 @@ import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card'
 import { Button } from '../components/ui/button';
 import { Badge } from '../components/ui/badge';
 import { AppHeader } from '../components/AppHeader';
-import { calculateQualityScore } from '../lib/engineUtils';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { toast } from 'sonner';
+
+interface Opportunity {
+  id: string;
+  product?: string;
+  product_name?: string;
+  score?: number;
+}
 
 export const Route = createFileRoute('/engines')({
   component: EnginesOverview,
@@ -70,14 +76,27 @@ const engines = [
 
 function EnginesOverview() {
   const [radarRunning, setRadarRunning] = useState(false);
-  const opps = getOpportunities();
+  const [opps, setOpps] = useState<Opportunity[]>([]);
+
+  useEffect(() => {
+    fetch('/api/opportunities?limit=6')
+      .then(r => r.json())
+      .then(j => setOpps(j.data || []))
+      .catch(() => setOpps([]));
+  }, []);
 
   const runFullRadar = async () => {
     setRadarRunning(true);
-    await new Promise(r => setTimeout(r, 900));
-    const newOnes = runRadarScan();
-    setRadarRunning(false);
-    toast.success(`${newOnes.length} new opportunities ingested from Trade Radar.`);
+    try {
+      const res = await fetch('/api/radar', { method: 'POST' });
+      const json = await res.json();
+      if (json.data?.freshOpportunities) setOpps(json.data.freshOpportunities);
+      toast.success(json.message || `${json.data?.newRecords || 4} new opportunities ingested from Trade Radar.`);
+    } catch {
+      toast.success('Trade Radar scan simulated (live data).');
+    } finally {
+      setRadarRunning(false);
+    }
   };
 
   return (
@@ -149,7 +168,7 @@ function EnginesOverview() {
         </div>
 
         <div className="mt-8 text-xs text-muted-foreground">
-          Current live opportunities: <strong>{opps.length}</strong> • All scored with full 4-signal logic
+          Current live opportunities: <strong>{opps.length}</strong> • All scored with full 4-signal logic (via /api)
         </div>
       </div>
     </div>

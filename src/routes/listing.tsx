@@ -17,20 +17,34 @@ function CreateListing() {
     product: '', quantity: '1000', unit: 'MT', price: '450', origin: 'Iraq', exportCountry: 'Turkey', category: 'Fertilizers', type: 'sell'
   });
 
-  const submit = (e: React.FormEvent) => {
+  const submit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const opp = addOpportunity({
-      product: form.product,
-      quantity: parseInt(form.quantity),
-      price: parseFloat(form.price),
-      origin: form.origin,
-      exportCountry: form.exportCountry,
-      category: form.category,
-      type: form.type as any,
-      unit: form.unit,
-    });
-    toast.success(`Listing posted! ID: ${opp.id}`);
-    setForm({ ...form, product: '' });
+    try {
+      const res = await fetch('/api/opportunities', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          product_name: form.product,
+          quantity: parseInt(form.quantity),
+          price: parseFloat(form.price),
+          origin_country: form.origin,
+          export_country: form.exportCountry,
+          category: form.category,
+          type: form.type,
+          unit: form.unit,
+        }),
+      });
+      if (res.ok) {
+        const json = await res.json();
+        toast.success(`Listing posted! ID: ${json.data?.id}`);
+        setForm({ ...form, product: '' });
+      } else {
+        toast.error('Failed to post listing');
+      }
+    } catch {
+      toast.error('Post failed (demo)');
+      setForm({ ...form, product: '' });
+    }
   };
 
   return (

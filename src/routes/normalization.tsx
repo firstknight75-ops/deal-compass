@@ -1,11 +1,26 @@
 import { createFileRoute } from '@tanstack/react-router';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import { Button } from '../components/ui/button';
 import { Badge } from '../components/ui/badge';
 import { useI18n } from '../lib/i18n';
 import { AppHeader } from '../components/AppHeader';
 import { toast } from 'sonner';
+
+interface NormalizedRecord {
+  product?: string;
+  product_name?: string;
+  originCountry?: string;
+  origin_country?: string;
+  exportCountry?: string;
+  export_country?: string;
+  quantity?: number;
+  unit?: string;
+  price?: number;
+  incoterm?: string;
+  verificationStatus?: string;
+  sourceUrl?: string;
+}
 
 export const Route = createFileRoute('/normalization')({
   component: NormalizationEngine,
@@ -14,31 +29,39 @@ export const Route = createFileRoute('/normalization')({
 function NormalizationEngine() {
   const { t } = useI18n();
   const [processing, setProcessing] = useState(false);
-  const [normalized, setNormalized] = useState(getRecentNormalized());
+  const [normalized, setNormalized] = useState<NormalizedRecord[]>([]);
+
+  const loadNormalized = async () => {
+    try {
+      const res = await fetch('/api/normalization');
+      const json = await res.json();
+      setNormalized(json.data || []);
+    } catch {
+      setNormalized([]);
+    }
+  };
+
+  useEffect(() => {
+    loadNormalized();
+  }, []);
 
   const runNormalizationBatch = async () => {
     setProcessing(true);
-    await new Promise(r => setTimeout(r, 1350));
-
-    const rawOpps = getOpportunities().slice(0, 5);
-    const rawData = rawOpps.map(o => ({
-      product: o.product,
-      category: o.category,
-      quantity: o.quantity,
-      unit: o.unit,
-      price: o.price,
-      origin: o.origin,
-      exportCountry: o.exportCountry,
-      incoterm: o.incoterm,
-      verified: o.verified,
-      sourceUrl: o.sourceUrl || `https://crawl.source/${o.id}`,
-    }));
-
-    const results = runNormalization(rawData);
-    setNormalized(getRecentNormalized(10));
-    setProcessing(false);
-
-    toast.success(`Normalized ${results.length} raw records into 5-language uniform format.`);
+    try {
+      const res = await fetch('/api/normalization', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ rawRecords: [] }), // server can pull recent
+      });
+      const json = await res.json();
+      if (json.recent) setNormalized(json.recent);
+      else await loadNormalized();
+      toast.success(`Normalized batch completed.`);
+    } catch {
+      toast.error('Normalization failed');
+    } finally {
+      setProcessing(false);
+    }
   };
 
   return (

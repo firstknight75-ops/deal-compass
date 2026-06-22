@@ -1,5 +1,5 @@
 import { createFileRoute } from '@tanstack/react-router';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
@@ -10,50 +10,135 @@ import { AppHeader } from '../components/AppHeader';
 import { ScoreBreakdown } from '../components/ScoreBreakdown';
 import { toast } from 'sonner';
 
+interface Opportunity {
+  id: string;
+  type: string;
+  product?: string;
+  product_name?: string;
+  category?: string;
+  quantity?: number;
+  unit?: string;
+  price?: number;
+  currency?: string;
+  origin?: string;
+  origin_country?: string;
+  exportCountry?: string;
+  export_country?: string;
+  incoterm?: string;
+  score?: number;
+  ageDays?: number;
+  company?: string;
+  company_name?: string;
+  verified?: boolean;
+  contactName?: string;
+  contactPhone?: string;
+  contactEmail?: string;
+  sourceUrl?: string;
+  leadQuality?: any;
+  scoreBreakdown?: any;
+}
+
 export const Route = createFileRoute('/opportunities')({
   component: OpportunitiesPage,
 });
 
 function OpportunitiesPage() {
   const { t } = useI18n();
-  const [opps, setOpps] = useState(getOpportunities());
+  const [opps, setOpps] = useState<Opportunity[]>([]);
   const [filters, setFilters] = useState({ product: '', origin: '', type: 'all', minScore: 0 });
   const [unlocked, setUnlocked] = useState<string[]>([]);
-  const user = getUser();
+  const [user, setUser] = useState<any>({ credits: 28, tier: 'silver' });
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const load = async () => {
+      setLoading(true);
+      try {
+        const [userRes, oppsRes] = await Promise.all([
+          fetch('/api/user/me'),
+          fetch('/api/opportunities')
+        ]);
+        const u = await userRes.json();
+        const o = await oppsRes.json();
+        setUser(u.data || u);
+        setOpps(o.data || []);
+      } catch {
+        setUser({ credits: 28, tier: 'silver' });
+        setOpps([]);
+      }
+      setLoading(false);
+    };
+    load();
+  }, []);
 
   const filtered = opps.filter(o => {
-    const matchesProduct = !filters.product || o.product.toLowerCase().includes(filters.product.toLowerCase());
-    const matchesOrigin = !filters.origin || o.origin.toLowerCase().includes(filters.origin.toLowerCase()) || o.exportCountry.toLowerCase().includes(filters.origin.toLowerCase());
+    const prod = (o.product || o.product_name || '').toLowerCase();
+    const orig = (o.origin || o.origin_country || '').toLowerCase();
+    const exp = (o.exportCountry || o.export_country || '').toLowerCase();
+    const matchesProduct = !filters.product || prod.includes(filters.product.toLowerCase());
+    const matchesOrigin = !filters.origin || orig.includes(filters.origin.toLowerCase()) || exp.includes(filters.origin.toLowerCase());
     const matchesType = filters.type === 'all' || o.type === filters.type;
-    const matchesScore = o.score >= filters.minScore;
+    const score = o.score || 0;
+    const matchesScore = score >= filters.minScore;
     return matchesProduct && matchesOrigin && matchesType && matchesScore;
   });
 
-  function handleUnlock(id: string) {
-    if (!useCredits(1)) {
-      toast.error('Not enough credits. Upgrade or buy more.');
-      return;
-    }
-    const updated = unlockContact(id);
-    if (updated) {
-      setUnlocked([...unlocked, id]);
-      setOpps(getOpportunities());
-      toast.success('Contact unlocked! 1 credit used.');
-    }
-  }
+  const handleUnlock = async (id: string) => {
+    try {
+      const creditRes = await fetch('/api/credits', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ amount: 1, referenceId: 'unlock_' + id }),
+      });
+      if (!creditRes.ok) {
+        const err = await creditRes.json().catch(() => ({}));
+        toast.error(err.error || 'Not enough credits. Upgrade or buy more.');
+        return;
+      }
+      // Refresh user
+      const userRes = await fetch('/api/user/me');
+      const u = await userRes.json();
+      setUser(u.data || u);
 
-  function handleAddDemo() {
-    const newOpp = addOpportunity({
-      product: 'Phosphoric Acid 54%',
-      quantity: 1800,
-      price: 680,
-      origin: 'Morocco',
-      exportCountry: 'Turkey',
-      category: 'Fertilizers'
-    });
-    setOpps(getOpportunities());
-    toast.success('Demo opportunity added.');
-  }
+      // For unlock, fetch full opp (contact reveal handled server-side or via separate call)
+      const oppRes = await fetch(`/api/opportunities?product=&origin=&type=&minScore=0`); // could enhance to fetch single
+      const oppData = await oppRes.json();
+      setOpps(oppData.data || []);
+
+      setUnlocked([...unlocked, id]);
+      toast.success('Contact unlocked! 1 credit used.');
+    } catch (e) {
+      toast.error('Unlock failed');
+    }
+  };
+
+  const handleAddDemo = async () => {
+    try {
+      const res = await fetch('/api/opportunities', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          product_name: 'Phosphoric Acid 54%',
+          quantity: 1800,
+          price: 680,
+          origin_country: 'Morocco',
+          export_country: 'Turkey',
+          category: 'Fertilizers',
+          type: 'sell',
+          unit: 'MT',
+        }),
+      });
+      if (res.ok) {
+        const json = await res.json();
+        setOpps([json.data, ...opps]);
+        toast.success('Demo opportunity added.');
+      } else {
+        toast.error('Failed to add listing');
+      }
+    } catch {
+      toast.error('Add failed (demo)');
+    }
+  };
 
   return (
     <div className="min-h-screen bg-paper">
@@ -93,35 +178,44 @@ function OpportunitiesPage() {
         <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
           {filtered.map(opp => {
             const isUnlocked = unlocked.includes(opp.id);
+            const product = opp.product_name || opp.product || 'Unknown';
+            const origin = opp.origin_country || opp.origin || '';
+            const exportC = opp.export_country || opp.exportCountry || '';
+            const qty = opp.quantity || 0;
+            const price = opp.price || 0;
+            const unit = opp.unit || 'MT';
+            const company = opp.company_name || opp.company || 'Unknown';
+            const score = opp.score || 0;
+            const age = opp.ageDays || 0;
             return (
               <Card key={opp.id} className="hover:shadow-lg transition">
                 <CardHeader className="pb-3">
                   <div className="flex justify-between items-start">
                     <div>
                       <Badge variant={opp.type === 'sell' ? 'default' : opp.type === 'buy' ? 'secondary' : 'outline'}>
-                        {opp.type.toUpperCase()}
+                        {opp.type?.toUpperCase()}
                       </Badge>
-                      <div className="font-semibold text-xl mt-2">{opp.product}</div>
+                      <div className="font-semibold text-xl mt-2">{product}</div>
                     </div>
                     <div className="text-right">
-                      <div className="font-mono text-xl text-gold font-bold">{opp.score}</div>
+                      <div className="font-mono text-xl text-gold font-bold">{score}</div>
                       <div className="text-xs -mt-1 text-muted-foreground">SCORE</div>
                     </div>
                   </div>
                 </CardHeader>
                 <CardContent className="space-y-3 text-sm">
                   <div className="grid grid-cols-2 gap-x-4 gap-y-1.5">
-                    <div><span className="text-muted-foreground">Quantity:</span> {opp.quantity.toLocaleString()} {opp.unit}</div>
-                    <div><span className="text-muted-foreground">Price:</span> ${opp.price} / {opp.unit}</div>
-                    <div><span className="text-muted-foreground">Origin:</span> {opp.origin}</div>
-                    <div><span className="text-muted-foreground">Export via:</span> {opp.exportCountry}</div>
+                    <div><span className="text-muted-foreground">Quantity:</span> {qty.toLocaleString()} {unit}</div>
+                    <div><span className="text-muted-foreground">Price:</span> ${price} / {unit}</div>
+                    <div><span className="text-muted-foreground">Origin:</span> {origin}</div>
+                    <div><span className="text-muted-foreground">Export via:</span> {exportC}</div>
                     <div><span className="text-muted-foreground">Incoterm:</span> {opp.incoterm}</div>
-                    <div><span className="text-muted-foreground">Age:</span> {opp.ageDays}d</div>
+                    <div><span className="text-muted-foreground">Age:</span> {age}d</div>
                   </div>
 
                   <div className="pt-2 flex items-center justify-between border-t">
                     <div>
-                      <div className="font-medium">{opp.company}</div>
+                      <div className="font-medium">{company}</div>
                       <div className="text-xs text-muted-foreground">{opp.verified ? '✓ Verified' : 'Unverified'}</div>
                     </div>
 
@@ -158,7 +252,8 @@ function OpportunitiesPage() {
           })}
         </div>
         
-        {filtered.length === 0 && <div className="text-center py-12 text-muted-foreground">No opportunities match filters.</div>}
+        {filtered.length === 0 && !loading && <div className="text-center py-12 text-muted-foreground">No opportunities match filters.</div>}
+        {loading && <div className="text-center py-12 text-muted-foreground">Loading live opportunities...</div>}
       </div>
     </div>
   );

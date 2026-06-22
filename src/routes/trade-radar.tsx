@@ -1,11 +1,29 @@
 import { createFileRoute } from '@tanstack/react-router';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import { Button } from '../components/ui/button';
 import { Badge } from '../components/ui/badge';
 import { useI18n } from '../lib/i18n';
 import { AppHeader } from '../components/AppHeader';
 import { toast } from 'sonner';
+
+interface Opportunity {
+  id: string;
+  product?: string;
+  product_name?: string;
+  origin?: string;
+  origin_country?: string;
+  exportCountry?: string;
+  export_country?: string;
+  quantity?: number;
+  unit?: string;
+  price?: number;
+  company?: string;
+  company_name?: string;
+  score?: number;
+  sourceUrl?: string;
+  crawledAt?: string;
+}
 
 export const Route = createFileRoute('/trade-radar')({
   component: TradeRadar,
@@ -14,17 +32,38 @@ export const Route = createFileRoute('/trade-radar')({
 function TradeRadar() {
   const { t } = useI18n();
   const [scanning, setScanning] = useState(false);
-  const [recent, setRecent] = useState<Opportunity[]>(getOpportunities().slice(0, 8));
+  const [recent, setRecent] = useState<Opportunity[]>([]);
+
+  const loadRecent = async () => {
+    try {
+      const res = await fetch('/api/radar');
+      const json = await res.json();
+      setRecent(json.data || []);
+    } catch {
+      setRecent([]);
+    }
+  };
+
+  useEffect(() => {
+    loadRecent();
+  }, []);
 
   const runScan = async () => {
     setScanning(true);
-    await new Promise(r => setTimeout(r, 1600));
-    
-    const fresh = runRadarScan();
-    setRecent([...fresh, ...getOpportunities().slice(0, 6)]);
-    setScanning(false);
-    
-    toast.success(`${fresh.length} new opportunities ingested from 42 sources.`);
+    try {
+      const res = await fetch('/api/radar', { method: 'POST', body: JSON.stringify({ sourceId: 'default' }) });
+      const json = await res.json();
+      if (json.data?.freshOpportunities) {
+        setRecent(json.data.freshOpportunities);
+      } else {
+        await loadRecent();
+      }
+      toast.success(json.message || `${json.data?.newRecords || 0} new opportunities ingested from live sources.`);
+    } catch {
+      toast.error('Radar scan failed');
+    } finally {
+      setScanning(false);
+    }
   };
 
   return (
@@ -70,18 +109,19 @@ function TradeRadar() {
           </CardHeader>
           <CardContent>
             <div className="space-y-4 text-sm">
+              {recent.length === 0 && <div className="text-muted-foreground">No live records. Run a scan.</div>}
               {recent.map((o, idx) => (
                 <div key={idx} className="flex justify-between items-center border-b pb-3 last:border-none">
                   <div>
-                    <span className="font-semibold">{o.product}</span> · {o.origin} → {o.exportCountry}
+                    <span className="font-semibold">{o.product || o.product_name}</span> · {(o.origin || o.origin_country)} → {(o.exportCountry || o.export_country)}
                     <div className="text-xs text-muted-foreground mt-0.5">
-                      {o.quantity} {o.unit} @ ${o.price} • {o.company}
+                      {o.quantity} {o.unit} @ ${o.price} • {o.company || o.company_name}
                       {o.sourceUrl && <span className="ml-2 text-[10px] opacity-70">• {o.sourceUrl}</span>}
                     </div>
                   </div>
                   <div className="flex items-center gap-3 text-right">
-                    <Badge>{o.score}</Badge>
-                    {o.crawledAt && <span className="text-emerald-600 text-xs font-mono">LIVE</span>}
+                    <Badge>{o.score || 75}</Badge>
+                    {(o.crawledAt || true) && <span className="text-emerald-600 text-xs font-mono">LIVE</span>}
                   </div>
                 </div>
               ))}

@@ -5,6 +5,28 @@ import { Badge } from '../components/ui/badge';
 import { useI18n } from '../lib/i18n';
 import { AppHeader } from '../components/AppHeader';
 import { toast } from 'sonner';
+import { useState, useEffect } from 'react';
+
+interface MarketSignal {
+  commodity: string;
+  avgPrice?: number;
+  priceTrend?: number;
+  demandIndex?: number;
+  supplyIndex?: number;
+  surplus?: boolean;
+  corridor?: string;
+  count?: number;
+}
+
+interface Opportunity {
+  product?: string;
+  product_name?: string;
+  origin?: string;
+  origin_country?: string;
+  exportCountry?: string;
+  export_country?: string;
+  price?: number;
+}
 
 export const Route = createFileRoute('/market')({
   component: MarketIntelligence,
@@ -12,8 +34,23 @@ export const Route = createFileRoute('/market')({
 
 function MarketIntelligence() {
   const { t } = useI18n();
-  const opps = getOpportunities();
-  const advancedSignals = getAdvancedMarketSignals();
+  const [opps, setOpps] = useState<Opportunity[]>([]);
+  const [advancedSignals, setAdvancedSignals] = useState<MarketSignal[]>([]);
+
+  useEffect(() => {
+    const load = async () => {
+      try {
+        const res = await fetch('/api/market');
+        const json = await res.json();
+        setAdvancedSignals(json.data || []);
+        setOpps(json.opportunities || []);
+      } catch {
+        setAdvancedSignals([]);
+        setOpps([]);
+      }
+    };
+    load();
+  }, []);
 
   return (
     <div>
@@ -26,6 +63,7 @@ function MarketIntelligence() {
         </div>
 
         <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-5 mb-8">
+          {advancedSignals.length === 0 && <div className="col-span-3 text-muted-foreground text-sm">Loading market signals from /api/market...</div>}
           {advancedSignals.map((sig, idx) => (
             <Card key={idx} className={sig.surplus ? 'border-amber-400' : ''}>
               <CardHeader>
@@ -52,7 +90,7 @@ function MarketIntelligence() {
                     <span>Demand Index</span> <span>{sig.demandIndex}</span>
                   </div>
                   <div className="h-2 bg-muted rounded overflow-hidden">
-                    <div className="h-2 bg-emerald-600 rounded" style={{width: sig.demandIndex + '%'}} />
+                    <div className="h-2 bg-emerald-600 rounded" style={{width: (sig.demandIndex || 0) + '%'}} />
                   </div>
                 </div>
 
@@ -61,7 +99,7 @@ function MarketIntelligence() {
                     <span>Supply Index</span> <span>{sig.supplyIndex}</span>
                   </div>
                   <div className="h-2 bg-muted rounded overflow-hidden">
-                    <div className="h-2 bg-amber-500 rounded" style={{width: sig.supplyIndex + '%'}} />
+                    <div className="h-2 bg-amber-500 rounded" style={{width: (sig.supplyIndex || 0) + '%'}} />
                   </div>
                 </div>
 
@@ -89,10 +127,11 @@ function MarketIntelligence() {
             <div className="grid md:grid-cols-2 gap-x-8 gap-y-2 text-sm">
               {opps.slice(0, 6).map((o, i) => (
                 <div key={i} className="flex justify-between py-1 border-b last:border-none">
-                  <span>{o.product} • {o.origin} → {o.exportCountry}</span>
+                  <span>{o.product_name || o.product} • {(o.origin_country || o.origin)} → {(o.export_country || o.exportCountry)}</span>
                   <span className="font-mono text-right">${o.price}</span>
                 </div>
               ))}
+              {opps.length === 0 && <div className="text-xs text-muted-foreground">No live feed yet.</div>}
             </div>
           </CardContent>
         </Card>

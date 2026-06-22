@@ -1,5 +1,5 @@
 import { createFileRoute } from '@tanstack/react-router';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import { Button } from '../components/ui/button';
 import { Badge } from '../components/ui/badge';
@@ -7,34 +7,81 @@ import { useI18n } from '../lib/i18n';
 import { AppHeader } from '../components/AppHeader';
 import { toast } from 'sonner';
 
+interface PreDeal {
+  id: string;
+  product?: string;
+  quantity?: number;
+  suggestedPrice?: number;
+  suggested_price?: number;
+  matchScore?: number;
+  match_score?: number;
+  status: string;
+  expiresAt?: string;
+  expires_at?: string;
+  paymentTerms?: string;
+  payment_recommendation?: string;
+}
+
 export const Route = createFileRoute('/pre-deals')({
   component: PreDealsPage,
 });
 
 function PreDealsPage() {
   const { t } = useI18n();
-  const [deals, setDeals] = useState(getPreDeals());
+  const [deals, setDeals] = useState<PreDeal[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  function handleAction(id: string, action: 'accepted' | 'rejected' | 'countered') {
-    const updated = updatePreDeal(id, action);
-    if (updated) {
-      setDeals(getPreDeals());
-      if (action === 'accepted') {
-        toast.success('Pre-deal accepted! Order created.');
-      } else {
-        toast('Pre-deal ' + action);
+  const loadDeals = async () => {
+    setLoading(true);
+    try {
+      const res = await fetch('/api/pre-deals');
+      const json = await res.json();
+      setDeals(json.data || []);
+    } catch {
+      setDeals([]);
+    }
+    setLoading(false);
+  };
+
+  useEffect(() => {
+    loadDeals();
+  }, []);
+
+  const handleAction = async (id: string, action: 'accepted' | 'rejected' | 'countered') => {
+    try {
+      const res = await fetch('/api/pre-deals', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'respond', id, status: action }),
+      });
+      if (res.ok) {
+        await loadDeals();
+        if (action === 'accepted') {
+          toast.success('Pre-deal accepted! Order created.');
+        } else {
+          toast('Pre-deal ' + action);
+        }
       }
+    } catch {
+      toast.error('Action failed');
     }
-  }
+  };
 
-  function generateMore() {
-    const opps = getOpportunities();
-    if (opps.length) {
-      const newDeals = generatePreDealsForOpp(opps[0].id);
-      setDeals(getPreDeals());
-      toast.success('New AI-generated pre-deal created.');
+  const generateMore = async () => {
+    try {
+      const res = await fetch('/api/pre-deals', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'generate' }),
+      });
+      if (res.ok) {
+        await loadDeals();
+        toast.success('New AI-generated pre-deals created.');
+      }
+    } catch {
+      toast.error('Generate failed');
     }
-  }
+  };
 
   return (
     <div>
@@ -49,18 +96,19 @@ function PreDealsPage() {
         </div>
 
         <div className="space-y-4">
+          {deals.length === 0 && !loading && <div className="text-center py-8 text-muted-foreground">No pre-deals yet. Generate some.</div>}
           {deals.map(deal => (
             <Card key={deal.id}>
               <CardContent className="pt-6 flex justify-between items-center">
                 <div>
                   <div className="font-semibold text-lg">{deal.product}</div>
-                  <div className="text-sm">{deal.quantity} units @ ${deal.suggestedPrice} suggested</div>
-                  <div className="mt-1 text-xs text-muted-foreground">Expires: {deal.expiresAt} • {deal.paymentTerms}</div>
+                  <div className="text-sm">{deal.quantity || 1000} units @ ${deal.suggestedPrice || deal.suggested_price} suggested</div>
+                  <div className="mt-1 text-xs text-muted-foreground">Expires: {deal.expiresAt || deal.expires_at} • {deal.paymentTerms || deal.payment_recommendation}</div>
                 </div>
                 
                 <div className="flex items-center gap-4">
                   <div>
-                    <Badge>Match: {deal.matchScore}%</Badge>
+                    <Badge>Match: {deal.matchScore || deal.match_score}%</Badge>
                     <div className="text-xs mt-1">Status: <span className="font-medium">{deal.status}</span></div>
                   </div>
                   
