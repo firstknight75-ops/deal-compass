@@ -23,7 +23,7 @@ export async function handleApiRequest(request: Request): Promise<Response> {
 
   // Health (no rate limit, simple)
   if (path === '/health') {
-    return await healthGET();
+    return await healthGET(request);
   }
 
   // Opportunities

@@ -17,7 +17,7 @@ export class StripeService extends BaseService {
 
     if (secretKey) {
       this.stripe = new Stripe(secretKey, {
-        apiVersion: '2024-11-20.acacia',
+        apiVersion: '2026-05-27.dahlia',
         typescript: true,
       });
       this.isConfigured = true;

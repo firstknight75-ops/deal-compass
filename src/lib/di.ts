@@ -64,7 +64,7 @@ import { notificationDelivery } from '../services/notification-delivery.service'
 import { notificationRuleEngine } from '../services/notification-rule.engine';
 import { crawlerRegistry } from '../services/crawler.registry';
 import { crawlerOrchestrator } from '../services/crawler.orchestrator';
-import { baseService } from '../services/base.service'; // optional
+
 
 export function registerAllServices() {
   container.registerInstance('opportunityService', opportunityService);
