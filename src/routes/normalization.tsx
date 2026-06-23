@@ -129,7 +129,7 @@ function NormalizationEngine() {
                       </div>
                     </div>
                     <div className="mt-1 text-sm">
-                      {rec.quantity.toLocaleString()} {rec.unit} @ ${rec.price}
+                      {(rec.quantity ?? 0).toLocaleString()} {rec.unit} @ ${rec.price}
                     </div>
                     <div className="text-[10px] text-muted-foreground mt-1 truncate">
                       {rec.sourceUrl}

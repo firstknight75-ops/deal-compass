@@ -16,7 +16,7 @@ export const Route = createFileRoute('/ai-agent')({
 function AISourcingAgent() {
   const { t } = useI18n();
   const [query, setQuery] = useState('');
-  const [results, setResults] = useState<Opportunity[]>([]);
+  const [results, setResults] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [parsedFilters, setParsedFilters] = useState<any>(null);
 

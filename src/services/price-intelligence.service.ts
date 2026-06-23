@@ -44,7 +44,7 @@ export class PriceIntelligenceService extends BaseService {
 
       if (!recent || recent.length === 0) return [];
 
-      const byCommodity = recent.reduce((acc: any, p) => {
+      const byCommodity = recent.reduce((acc: any, p: any) => {
         if (!acc[p.commodity]) acc[p.commodity] = [];
         acc[p.commodity].push(p);
         return acc;
