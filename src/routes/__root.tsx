@@ -54,30 +54,20 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { title: "DealCompass AI+ — Global Trade Intelligence" },
       { name: "description", content: "Six AI engines powering cross-border trade intelligence across Iraq, Iran, Turkey, and the EU." },
     ],
-    links: [{ rel: "stylesheet", href: appCss }],
   }),
-  shellComponent: RootShell,
   component: RootComponent,
   notFoundComponent: NotFoundComponent,
   errorComponent: ErrorComponent,
 });
 
-function RootShell({ children }: { children: ReactNode }) {
-  return (
-    <html lang="ar" dir="rtl">
-      <head><HeadContent /></head>
-      <body>{children}<Scripts /></body>
-    </html>
-  );
-}
-
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
 
-  // Initialize language from localStorage on app load
   useEffect(() => {
     const lang = getCurrentLang();
     setLanguage(lang);
+    document.documentElement.lang = "ar";
+    document.documentElement.dir = "rtl";
   }, []);
 
   return (
